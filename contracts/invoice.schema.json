@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://airlock.local/contracts/invoice.schema.json",
+  "$comment": "Airlock Contracts v1.2.0. CANONICAL invoice structure: identical field names/types in the SQLite `invoices` table, seeding, tools.json, mutation before/after records, commit logic and every example.",
+  "title": "InvoiceRecord",
+  "description": "Canonical invoice record stored in `airlock_prod.db` and in every speculative SQLite database (500 seeded records: INV-0001 through INV-0500; 420 OVERDUE, 80 non-overdue).",
+  "type": "object",
+  "required": [
+    "id",
+    "customer_name",
+    "customer_email",
+    "amount_cents",
+    "currency",
+    "status",
+    "due_date",
+    "notes",
+    "version",
+    "created_at",
+    "updated_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^INV-\\d{4}$",
+      "description": "Primary key business identifier INV-0001..INV-0500 (not a UUID)."
+    },
+    "customer_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Customer or company name."
+    },
+    "customer_email": {
+      "type": "string",
+      "format": "email",
+      "maxLength": 254,
+      "description": "Customer billing contact email."
+    },
+    "amount_cents": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Invoice total in minor currency units (cents)."
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "default": "USD",
+      "description": "Three-letter ISO 4217 currency code."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "OVERDUE",
+        "PAID",
+        "PENDING",
+        "CANCELLED"
+      ],
+      "description": "Invoice lifecycle status."
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO 8601 calendar date (YYYY-MM-DD)."
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500,
+      "description": "Optional billing notes. Never carries secrets: update_invoice rejects secret markers."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optimistic-concurrency row version; starts at 1; incremented on every update."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "UTC ISO 8601 timestamp ending in Z."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "UTC ISO 8601 timestamp ending in Z."
+    }
+  },
+  "x-sqlite": {
+    "table": "invoices",
+    "primary_key": "id",
+    "column_order": [
+      "id",
+      "customer_name",
+      "customer_email",
+      "amount_cents",
+      "currency",
+      "status",
+      "due_date",
+      "notes",
+      "version",
+      "created_at",
+      "updated_at"
+    ],
+    "ddl": [
+      "CREATE TABLE invoices (",
+      "  id TEXT PRIMARY KEY CHECK (id GLOB 'INV-[0-9][0-9][0-9][0-9]'),",
+      "  customer_name TEXT NOT NULL,",
+      "  customer_email TEXT NOT NULL,",
+      "  amount_cents INTEGER NOT NULL CHECK (amount_cents >= 1),",
+      "  currency TEXT NOT NULL DEFAULT 'USD',",
+      "  status TEXT NOT NULL CHECK (status IN ('OVERDUE','PAID','PENDING','CANCELLED')),",
+      "  due_date TEXT NOT NULL,",
+      "  notes TEXT,",
+      "  version INTEGER NOT NULL CHECK (version >= 1),",
+      "  created_at TEXT NOT NULL,",
+      "  updated_at TEXT NOT NULL",
+      ");"
+    ]
+  },
+  "x-field-roles": {
+    "agent_mutable": [
+      "status",
+      "amount_cents",
+      "due_date",
+      "notes"
+    ],
+    "system_managed": [
+      "version",
+      "updated_at"
+    ],
+    "immutable": [
+      "id",
+      "customer_name",
+      "customer_email",
+      "currency",
+      "created_at"
+    ],
+    "comment": "update_invoice may only change agent_mutable fields. version and updated_at are set by Airlock; they are excluded from mutation changed_fields."
+  },
+  "x-seed": {
+    "total": 500,
+    "overdue": 420,
+    "non_overdue": 80,
+    "status_by_id_range": [
+      {
+        "from": "INV-0001",
+        "to": "INV-0420",
+        "status": "OVERDUE"
+      },
+      {
+        "from": "INV-0421",
+        "to": "INV-0460",
+        "status": "PAID"
+      },
+      {
+        "from": "INV-0461",
+        "to": "INV-0485",
+        "status": "PENDING"
+      },
+      {
+        "from": "INV-0486",
+        "to": "INV-0500",
+        "status": "CANCELLED"
+      }
+    ],
+    "generator_for_non_fixed_records": {
+      "n": "numeric part of id",
+      "customer_name": "Customer {n:04d}",
+      "customer_email": "ap{n:04d}@customer{n:04d}.example.com",
+      "amount_cents": "10000 + n*137",
+      "currency": "USD",
+      "due_date": "OVERDUE: 2026-10-{(n%28)+1:02d}; others: 2026-12-{(n%28)+1:02d}",
+      "notes": null,
+      "version": 1,
+      "created_at": "2026-09-{(n%28)+1:02d}T10:00:00Z",
+      "updated_at": "same as created_at"
+    },
+    "fixed_records": [
+      {
+        "id": "INV-0001",
+        "customer_name": "Northwind Logistics",
+        "customer_email": "ap@northwind.example.com",
+        "amount_cents": 145000,
+        "currency": "USD",
+        "status": "OVERDUE",
+        "due_date": "2026-10-15",
+        "notes": "Net 30",
+        "version": 1,
+        "created_at": "2026-09-15T10:00:00Z",
+        "updated_at": "2026-09-15T10:00:00Z"
+      },
+      {
+        "id": "INV-0002",
+        "customer_name": "Fabrikam Supplies",
+        "customer_email": "accounts@fabrikam.example.com",
+        "amount_cents": 32050,
+        "currency": "USD",
+        "status": "OVERDUE",
+        "due_date": "2026-10-18",
+        "notes": null,
+        "version": 1,
+        "created_at": "2026-09-18T09:30:00Z",
+        "updated_at": "2026-09-18T09:30:00Z"
+      },
+      {
+        "id": "INV-0042",
+        "customer_name": "Contoso Retail",
+        "customer_email": "billing@contoso.example.com",
+        "amount_cents": 89000,
+        "currency": "USD",
+        "status": "OVERDUE",
+        "due_date": "2026-10-20",
+        "notes": null,
+        "version": 1,
+        "created_at": "2026-09-20T08:00:00Z",
+        "updated_at": "2026-09-20T08:00:00Z"
+      },
+      {
+        "id": "INV-0450",
+        "customer_name": "Tailspin Toys",
+        "customer_email": "billing@tailspin.example.com",
+        "amount_cents": 18900,
+        "currency": "USD",
+        "status": "PAID",
+        "due_date": "2026-09-30",
+        "notes": "Paid in full",
+        "version": 1,
+        "created_at": "2026-08-30T11:00:00Z",
+        "updated_at": "2026-09-30T08:00:00Z"
+      },
+      {
+        "id": "INV-0499",
+        "customer_name": "Wingtip Test Co",
+        "customer_email": "test@wingtip.example.com",
+        "amount_cents": 100,
+        "currency": "USD",
+        "status": "CANCELLED",
+        "due_date": "2026-08-01",
+        "notes": "Duplicate test invoice",
+        "version": 1,
+        "created_at": "2026-07-01T09:00:00Z",
+        "updated_at": "2026-07-01T09:00:00Z"
+      }
+    ],
+    "comment": "Fixed records override the generator. All seeded rows have version 1. No seeded field may contain a secret marker from policies.json."
+  },
+  "examples": [
+    {
+      "id": "INV-0042",
+      "customer_name": "Contoso Retail",
+      "customer_email": "billing@contoso.example.com",
+      "amount_cents": 89000,
+      "currency": "USD",
+      "status": "OVERDUE",
+      "due_date": "2026-10-20",
+      "notes": null,
+      "version": 1,
+      "created_at": "2026-09-20T08:00:00Z",
+      "updated_at": "2026-09-20T08:00:00Z"
+    }
+  ]
+}

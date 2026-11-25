@@ -1,0 +1,184 @@
+{
+  "version": "1.2.0",
+  "contracts_version": "1.2.0",
+  "precedence": [
+    "BLOCK",
+    "REQUIRE_APPROVAL",
+    "ALLOW"
+  ],
+  "evaluation_mode": "DETERMINISTIC",
+  "arithmetic": "INTEGER",
+  "ratio_rule": "affected_count * 100 > threshold_percent * baseline_record_count",
+  "ratio_rule_notes": "Integer arithmetic only (no floats). comparison GT is strictly greater-than. If baseline_record_count is 0 the rule never triggers. threshold_percent is a whole number 0-100.",
+  "gate_rules": {
+    "description": "Session gate_decision. Only violations with effect_scope SESSION participate. BLOCK is sticky for the session and can never be downgraded.",
+    "algorithm": [
+      "if any recorded violation has decision BLOCK and effect_scope SESSION -> BLOCK",
+      "elif execution_status is ACTIVE -> PENDING",
+      "elif any recorded violation has decision REQUIRE_APPROVAL and effect_scope SESSION -> REQUIRE_APPROVAL",
+      "else -> ALLOW"
+    ],
+    "allow_never_auto_commits": true
+  },
+  "session_block_lockout": {
+    "description": "After a session-level BLOCK: mutating tools (read_only=false in tools.json) are rejected with 403 POLICY_BLOCK (details.reason=SESSION_BLOCKED); read-only tools, /complete and /rollback remain available; /commit is always rejected.",
+    "mutating_tools": "REJECT",
+    "read_only_tools": "ALLOW",
+    "complete": "ALLOW",
+    "rollback": "ALLOW",
+    "commit": "REJECT"
+  },
+  "allowed_webhook_domains": [
+    "hooks.airlock.internal",
+    "api.acme-billing.example.com"
+  ],
+  "secret_markers": [
+    "sk_live_DEMO_REDACTED",
+    "sk_live_",
+    "AIRLOCK_SECRET_TEST_"
+  ],
+  "webhook_scan": {
+    "fields": [
+      "url",
+      "event_type",
+      "payload"
+    ],
+    "scan_object_keys_and_string_values": true,
+    "match": "CASE_SENSITIVE_SUBSTRING",
+    "also_scan_percent_decoded_url": true,
+    "known_limitation": "Obfuscated secrets (base64, split strings, other encodings) are not detected in the MVP."
+  },
+  "redaction": {
+    "description": "Applied to tool arguments, webhook payloads, free-text fields (agent_name, task_description, agent_summary, reviewer, reason), policy explanations, error messages/details, manifests, metadata storage and logs. Never applied to invoice row values (mutation before/after), because commit replays them verbatim; instead update_invoice rejects secret markers in notes (422 SECRET_IN_ARGUMENT) and the seed must not contain markers.",
+    "string_value_replacement": "[REDACTED]",
+    "object_key_replacement": "[REDACTED_KEY]",
+    "rule": "Any string value containing a secret marker is replaced entirely by string_value_replacement; any object key containing a marker is replaced by object_key_replacement."
+  },
+  "policies": [
+    {
+      "policy_id": "POL-001",
+      "policy_name": "Bulk Deletion Threshold",
+      "description": "Deleting more than 80% of baseline database records requires explicit human approval before commit. 400 of 500 (exactly 80%) does not trigger; 401 and 420 do.",
+      "rule_type": "MUTATION_THRESHOLD",
+      "target_operation": "DELETE",
+      "threshold_percent": 80,
+      "comparison": "GT",
+      "severity": "HIGH",
+      "decision": "REQUIRE_APPROVAL",
+      "effect_scope": "SESSION",
+      "evaluation_stage": "SESSION_COMPLETE",
+      "enabled": true,
+      "rationale": "Agreed MVP requirement: removing a super-majority of the dataset must be reviewed by a human. The 420/500 (84%) demo case must require approval. Strictly greater-than so that exactly 80% does not trigger."
+    },
+    {
+      "policy_id": "POL-002",
+      "policy_name": "Mass Update Threshold",
+      "description": "Updating more than 25% of baseline database records requires explicit human approval before commit. 125 of 500 (exactly 25%) does not trigger; 126 does.",
+      "rule_type": "MUTATION_THRESHOLD",
+      "target_operation": "UPDATE",
+      "threshold_percent": 25,
+      "comparison": "GT",
+      "severity": "MEDIUM",
+      "decision": "REQUIRE_APPROVAL",
+      "effect_scope": "SESSION",
+      "evaluation_stage": "SESSION_COMPLETE",
+      "enabled": true,
+      "rationale": "Retained at 25% from v1.0.0 and intentionally NOT aligned with POL-001. Thresholds are independent per-operation controls, not a severity ordering. A broad update changes many records without removing them, so it can corrupt financial data at scale while resembling routine maintenance; a lower tripwire asks for human review earlier. The value is an MVP placeholder pending business input; changing it does not affect the 80% deletion requirement."
+    },
+    {
+      "policy_id": "POL-003",
+      "policy_name": "Secret Exfiltration in Webhook Payload",
+      "description": "Any staged webhook whose url, event_type or payload contains a configured secret marker (such as sk_live_DEMO_REDACTED) is blocked immediately and never staged or dispatched.",
+      "rule_type": "PAYLOAD_SECRET_SCAN",
+      "target_tool": "stage_webhook",
+      "severity": "CRITICAL",
+      "decision": "BLOCK",
+      "effect_scope": "SESSION",
+      "evaluation_stage": "TOOL_EXECUTE",
+      "enabled": true,
+      "rationale": "Secret exfiltration attempt: the session is considered compromised, so the session gate becomes BLOCK."
+    },
+    {
+      "policy_id": "POL-004",
+      "policy_name": "Unauthorized Webhook Destination",
+      "description": "Staging a webhook whose hostname is not exactly listed in allowed_webhook_domains is blocked immediately.",
+      "rule_type": "WEBHOOK_ALLOWLIST",
+      "target_tool": "stage_webhook",
+      "severity": "CRITICAL",
+      "decision": "BLOCK",
+      "effect_scope": "SESSION",
+      "evaluation_stage": "TOOL_EXECUTE",
+      "enabled": true,
+      "rationale": "Unapproved destination: treated as an exfiltration attempt, so the session gate becomes BLOCK. Exact hostname match only; no wildcard or subdomain matching."
+    },
+    {
+      "policy_id": "POL-005",
+      "policy_name": "Unknown Tool Rejection",
+      "description": "Any tool invocation not present in the tools.json registry receives a tool-level BLOCK (400 INVALID_TOOL) and is recorded as a violation. It does not by itself block the session.",
+      "rule_type": "TOOL_ALLOWLIST",
+      "target_tool": "*",
+      "severity": "CRITICAL",
+      "decision": "BLOCK",
+      "effect_scope": "TOOL",
+      "evaluation_stage": "TOOL_EXECUTE",
+      "enabled": true,
+      "rationale": "The unknown call is never executed, so nothing in the session is tainted; an agent that hallucinates a tool name must not lose the whole session. The violation stays visible to the reviewer and raises risk_summary.overall_risk_level."
+    }
+  ],
+  "threshold_test_vectors": [
+    {
+      "policy_id": "POL-001",
+      "baseline_record_count": 500,
+      "affected_count": 0,
+      "triggers": false
+    },
+    {
+      "policy_id": "POL-001",
+      "baseline_record_count": 500,
+      "affected_count": 400,
+      "triggers": false
+    },
+    {
+      "policy_id": "POL-001",
+      "baseline_record_count": 500,
+      "affected_count": 401,
+      "triggers": true
+    },
+    {
+      "policy_id": "POL-001",
+      "baseline_record_count": 500,
+      "affected_count": 420,
+      "triggers": true
+    },
+    {
+      "policy_id": "POL-001",
+      "baseline_record_count": 500,
+      "affected_count": 500,
+      "triggers": true
+    },
+    {
+      "policy_id": "POL-001",
+      "baseline_record_count": 0,
+      "affected_count": 0,
+      "triggers": false
+    },
+    {
+      "policy_id": "POL-002",
+      "baseline_record_count": 500,
+      "affected_count": 125,
+      "triggers": false
+    },
+    {
+      "policy_id": "POL-002",
+      "baseline_record_count": 500,
+      "affected_count": 126,
+      "triggers": true
+    },
+    {
+      "policy_id": "POL-002",
+      "baseline_record_count": 500,
+      "affected_count": 1,
+      "triggers": false
+    }
+  ]
+}

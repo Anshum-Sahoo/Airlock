@@ -1,0 +1,1397 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://airlock.local/contracts/manifest.schema.json",
+  "$comment": "Airlock Contracts v1.2.0.",
+  "title": "AirlockSessionManifest",
+  "description": "Complete session manifest: execution/gate/review status, net mutation records, staged webhooks, policy violations, tool history and finalization result. Stored (secret-redacted) in the SQLite metadata database; it is the source of truth for commit.",
+  "type": "object",
+  "required": [
+    "session_id",
+    "agent_name",
+    "task_description",
+    "agent_summary",
+    "created_at",
+    "updated_at",
+    "completed_at",
+    "finalized_at",
+    "execution_status",
+    "gate_decision",
+    "human_review_status",
+    "baseline_record_count",
+    "risk_summary",
+    "mutation_counts",
+    "mutations",
+    "staged_webhooks",
+    "policy_violations",
+    "tool_execution_history",
+    "finalization_result"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "session_id": {
+      "$ref": "#/$defs/Uuid4"
+    },
+    "agent_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "task_description": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
+    },
+    "agent_summary": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1000,
+      "description": "Supplied at /complete; display only, never evaluated by policy."
+    },
+    "created_at": {
+      "$ref": "#/$defs/UtcTimestamp"
+    },
+    "updated_at": {
+      "$ref": "#/$defs/UtcTimestamp"
+    },
+    "completed_at": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      ]
+    },
+    "finalized_at": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      ]
+    },
+    "execution_status": {
+      "$ref": "#/$defs/ExecutionStatus"
+    },
+    "gate_decision": {
+      "$ref": "#/$defs/GateDecision"
+    },
+    "human_review_status": {
+      "$ref": "#/$defs/HumanReviewStatus"
+    },
+    "baseline_record_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "risk_summary": {
+      "$ref": "#/$defs/RiskSummary"
+    },
+    "mutation_counts": {
+      "$ref": "#/$defs/MutationCounts"
+    },
+    "mutations": {
+      "type": "object",
+      "required": [
+        "inserted",
+        "updated",
+        "deleted"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "inserted": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/Mutation"
+              },
+              {
+                "properties": {
+                  "mutation_type": {
+                    "const": "INSERT"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "updated": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/Mutation"
+              },
+              {
+                "properties": {
+                  "mutation_type": {
+                    "const": "UPDATE"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "deleted": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/Mutation"
+              },
+              {
+                "properties": {
+                  "mutation_type": {
+                    "const": "DELETE"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "staged_webhooks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StagedWebhook"
+      }
+    },
+    "policy_violations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PolicyViolation"
+      }
+    },
+    "tool_execution_history": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ToolExecution"
+      }
+    },
+    "finalization_result": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/FinalizationResult"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "execution_status": {
+            "const": "ACTIVE"
+          }
+        },
+        "required": [
+          "execution_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "completed_at": {
+            "type": "null"
+          },
+          "finalized_at": {
+            "type": "null"
+          },
+          "finalization_result": {
+            "type": "null"
+          },
+          "human_review_status": {
+            "const": "PENDING"
+          },
+          "gate_decision": {
+            "enum": [
+              "PENDING",
+              "BLOCK"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_status": {
+            "const": "COMPLETED"
+          }
+        },
+        "required": [
+          "execution_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "completed_at": {
+            "type": "string"
+          },
+          "finalized_at": {
+            "type": "null"
+          },
+          "human_review_status": {
+            "const": "PENDING"
+          },
+          "gate_decision": {
+            "enum": [
+              "ALLOW",
+              "REQUIRE_APPROVAL",
+              "BLOCK"
+            ]
+          },
+          "finalization_result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "action",
+                  "status"
+                ],
+                "properties": {
+                  "action": {
+                    "const": "COMMIT"
+                  },
+                  "status": {
+                    "const": "FAILED"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_status": {
+            "const": "COMMITTED"
+          }
+        },
+        "required": [
+          "execution_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "completed_at": {
+            "type": "string"
+          },
+          "finalized_at": {
+            "type": "string"
+          },
+          "human_review_status": {
+            "const": "APPROVED"
+          },
+          "gate_decision": {
+            "enum": [
+              "ALLOW",
+              "REQUIRE_APPROVAL"
+            ]
+          },
+          "finalization_result": {
+            "type": "object",
+            "required": [
+              "action",
+              "status"
+            ],
+            "properties": {
+              "action": {
+                "const": "COMMIT"
+              },
+              "status": {
+                "const": "SUCCESS"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_status": {
+            "const": "ROLLED_BACK"
+          }
+        },
+        "required": [
+          "execution_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "finalized_at": {
+            "type": "string"
+          },
+          "human_review_status": {
+            "const": "REJECTED"
+          },
+          "finalization_result": {
+            "type": "object",
+            "required": [
+              "action",
+              "status"
+            ],
+            "properties": {
+              "action": {
+                "const": "ROLLBACK"
+              },
+              "status": {
+                "const": "SUCCESS"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "Uuid4": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "Lowercase hyphenated UUID version 4."
+    },
+    "UtcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "UTC ISO 8601 timestamp ending in Z."
+    },
+    "ExecutionStatus": {
+      "type": "string",
+      "enum": [
+        "ACTIVE",
+        "COMPLETED",
+        "COMMITTED",
+        "ROLLED_BACK"
+      ]
+    },
+    "GateDecision": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "ALLOW",
+        "REQUIRE_APPROVAL",
+        "BLOCK"
+      ]
+    },
+    "HumanReviewStatus": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "APPROVED",
+        "REJECTED"
+      ]
+    },
+    "Decision": {
+      "type": "string",
+      "enum": [
+        "ALLOW",
+        "REQUIRE_APPROVAL",
+        "BLOCK"
+      ]
+    },
+    "RiskSummary": {
+      "type": "object",
+      "required": [
+        "overall_risk_level",
+        "total_mutations",
+        "affected_percentage",
+        "violation_count",
+        "block_count",
+        "require_approval_count",
+        "staged_webhook_count",
+        "summary_text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "overall_risk_level": {
+          "type": "string",
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+          ]
+        },
+        "total_mutations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "affected_percentage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "violation_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "block_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "require_approval_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "staged_webhook_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "summary_text": {
+          "type": "string"
+        }
+      }
+    },
+    "MutationCounts": {
+      "type": "object",
+      "required": [
+        "inserted",
+        "updated",
+        "deleted",
+        "total"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "inserted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "updated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deleted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "Mutation": {
+      "type": "object",
+      "required": [
+        "mutation_id",
+        "operation_id",
+        "tool_name",
+        "entity_type",
+        "entity_id",
+        "mutation_type",
+        "before",
+        "after",
+        "changed_fields",
+        "baseline_version",
+        "timestamp",
+        "policy_decision"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mutation_id": {
+          "$ref": "#/$defs/Uuid4"
+        },
+        "operation_id": {
+          "$ref": "#/$defs/Uuid4"
+        },
+        "tool_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "entity_type": {
+          "type": "string",
+          "const": "invoice"
+        },
+        "entity_id": {
+          "type": "string",
+          "pattern": "^INV-\\d{4}$"
+        },
+        "mutation_type": {
+          "type": "string",
+          "enum": [
+            "INSERT",
+            "UPDATE",
+            "DELETE"
+          ]
+        },
+        "before": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "invoice.schema.json"
+            }
+          ]
+        },
+        "after": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "invoice.schema.json"
+            }
+          ]
+        },
+        "changed_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "customer_name",
+              "customer_email",
+              "amount_cents",
+              "currency",
+              "status",
+              "due_date",
+              "notes"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "baseline_version": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ]
+        },
+        "timestamp": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "policy_decision": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "ALLOW",
+            "REQUIRE_APPROVAL",
+            "BLOCK"
+          ],
+          "description": "PENDING until /complete; then ALLOW or REQUIRE_APPROVAL. BLOCK is reserved (blocked tool calls create no mutation)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mutation_type": {
+                "const": "INSERT"
+              }
+            },
+            "required": [
+              "mutation_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "type": "null"
+              },
+              "after": {
+                "type": "object"
+              },
+              "baseline_version": {
+                "type": "null"
+              },
+              "changed_fields": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mutation_type": {
+                "const": "UPDATE"
+              }
+            },
+            "required": [
+              "mutation_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "type": "object"
+              },
+              "after": {
+                "type": "object"
+              },
+              "baseline_version": {
+                "type": "integer"
+              },
+              "changed_fields": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mutation_type": {
+                "const": "DELETE"
+              }
+            },
+            "required": [
+              "mutation_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "type": "object"
+              },
+              "after": {
+                "type": "null"
+              },
+              "baseline_version": {
+                "type": "integer"
+              },
+              "changed_fields": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "StagedWebhook": {
+      "type": "object",
+      "required": [
+        "webhook_id",
+        "operation_id",
+        "url",
+        "event_type",
+        "payload",
+        "staged_at",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "webhook_id": {
+          "$ref": "#/$defs/Uuid4"
+        },
+        "operation_id": {
+          "$ref": "#/$defs/Uuid4"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Secret-redacted copy. STAGED means recorded intent only; webhooks are never dispatched."
+        },
+        "staged_at": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "STAGED",
+            "BLOCKED"
+          ]
+        }
+      }
+    },
+    "PolicyViolation": {
+      "type": "object",
+      "required": [
+        "policy_id",
+        "policy_name",
+        "severity",
+        "decision",
+        "effect_scope",
+        "stage",
+        "operation_id",
+        "explanation",
+        "affected_record_count",
+        "timestamp"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "policy_id": {
+          "type": "string",
+          "pattern": "^POL-\\d{3}$"
+        },
+        "policy_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+          ]
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "ALLOW",
+            "REQUIRE_APPROVAL",
+            "BLOCK"
+          ]
+        },
+        "effect_scope": {
+          "type": "string",
+          "enum": [
+            "TOOL",
+            "SESSION"
+          ],
+          "description": "TOOL: affects only the evaluated tool call (e.g. POL-005). SESSION: participates in the session gate_decision."
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "TOOL_EXECUTE",
+            "SESSION_COMPLETE"
+          ]
+        },
+        "operation_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid4"
+            }
+          ]
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Never contains secret values."
+        },
+        "affected_record_count": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 0
+            }
+          ]
+        },
+        "timestamp": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "TOOL_EXECUTE"
+              }
+            },
+            "required": [
+              "stage"
+            ]
+          },
+          "then": {
+            "properties": {
+              "operation_id": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "SESSION_COMPLETE"
+              }
+            },
+            "required": [
+              "stage"
+            ]
+          },
+          "then": {
+            "properties": {
+              "operation_id": {
+                "type": "null"
+              },
+              "effect_scope": {
+                "const": "SESSION"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ToolExecution": {
+      "type": "object",
+      "required": [
+        "operation_id",
+        "tool_name",
+        "arguments",
+        "read_only",
+        "status",
+        "tool_decision",
+        "mutations_recorded",
+        "error_code",
+        "executed_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "operation_id": {
+          "$ref": "#/$defs/Uuid4"
+        },
+        "tool_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Secret-redacted; for unknown tools truncated to {\"_truncated\": true} when larger than 4096 bytes."
+        },
+        "read_only": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "From tools.json; null for unknown tools."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "SUCCESS",
+            "BLOCKED",
+            "ERROR"
+          ]
+        },
+        "tool_decision": {
+          "type": "string",
+          "enum": [
+            "ALLOW",
+            "REQUIRE_APPROVAL",
+            "BLOCK"
+          ]
+        },
+        "mutations_recorded": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Invoice rows changed in the speculative DB by this call."
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "INVALID_TOOL",
+            "INVALID_ARGUMENTS",
+            "INVOICE_NOT_FOUND",
+            "POLICY_BLOCK",
+            "DATABASE_FAILURE",
+            "INTERNAL_ERROR",
+            null
+          ]
+        },
+        "executed_at": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "SUCCESS"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "error_code": {
+                "type": "null"
+              },
+              "tool_decision": {
+                "enum": [
+                  "ALLOW",
+                  "REQUIRE_APPROVAL"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "BLOCKED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "tool_decision": {
+                "const": "BLOCK"
+              },
+              "mutations_recorded": {
+                "const": 0
+              },
+              "error_code": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "ERROR"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "mutations_recorded": {
+                "const": 0
+              },
+              "error_code": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ConflictDetail": {
+      "type": "object",
+      "required": [
+        "entity_type",
+        "entity_id",
+        "conflict_type",
+        "expected_version",
+        "actual_version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "entity_type": {
+          "type": "string",
+          "const": "invoice"
+        },
+        "entity_id": {
+          "type": "string",
+          "pattern": "^INV-\\d{4}$"
+        },
+        "conflict_type": {
+          "type": "string",
+          "enum": [
+            "MISSING",
+            "MODIFIED",
+            "UNEXPECTED_EXISTING"
+          ]
+        },
+        "expected_version": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ]
+        },
+        "actual_version": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "conflict_type": {
+                "const": "MISSING"
+              }
+            },
+            "required": [
+              "conflict_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "expected_version": {
+                "type": "integer"
+              },
+              "actual_version": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "conflict_type": {
+                "const": "MODIFIED"
+              }
+            },
+            "required": [
+              "conflict_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "expected_version": {
+                "type": "integer"
+              },
+              "actual_version": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "conflict_type": {
+                "const": "UNEXPECTED_EXISTING"
+              }
+            },
+            "required": [
+              "conflict_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "expected_version": {
+                "type": "null"
+              },
+              "actual_version": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "FinalizationResult": {
+      "type": "object",
+      "required": [
+        "action",
+        "status",
+        "actor",
+        "reason",
+        "timestamp",
+        "applied_counts",
+        "conflict_details",
+        "ledger_id",
+        "recovered"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "COMMIT",
+            "ROLLBACK"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "SUCCESS",
+            "FAILED"
+          ]
+        },
+        "actor": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Self-asserted reviewer label (authorization is by reviewer bearer token)."
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "applied_counts": {
+          "type": "object",
+          "required": [
+            "inserted",
+            "updated",
+            "deleted"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "inserted": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "updated": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "deleted": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "conflict_details": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/ConflictDetail"
+              }
+            }
+          ]
+        },
+        "ledger_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Uuid4"
+            }
+          ]
+        },
+        "recovered": {
+          "type": "boolean",
+          "description": "true when the session was finalized from the production commit-ledger receipt by startup/lazy reconciliation instead of by the original commit request."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "COMMIT"
+              },
+              "status": {
+                "const": "SUCCESS"
+              }
+            },
+            "required": [
+              "action",
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "ledger_id": {
+                "type": "string"
+              },
+              "conflict_details": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "COMMIT"
+              },
+              "status": {
+                "const": "FAILED"
+              }
+            },
+            "required": [
+              "action",
+              "status"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "properties": {
+                  "applied_counts": {
+                    "properties": {
+                      "inserted": {
+                        "const": 0
+                      },
+                      "updated": {
+                        "const": 0
+                      },
+                      "deleted": {
+                        "const": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "ledger_id": {
+                    "type": "null"
+                  },
+                  "recovered": {
+                    "const": false
+                  },
+                  "conflict_details": {
+                    "type": "array"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "ROLLBACK"
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "properties": {
+                  "applied_counts": {
+                    "properties": {
+                      "inserted": {
+                        "const": 0
+                      },
+                      "updated": {
+                        "const": 0
+                      },
+                      "deleted": {
+                        "const": 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "status": {
+                    "const": "SUCCESS"
+                  },
+                  "ledger_id": {
+                    "type": "null"
+                  },
+                  "recovered": {
+                    "const": false
+                  },
+                  "conflict_details": {
+                    "type": "null"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "x-state-machine": {
+    "execution_status_values": [
+      "ACTIVE",
+      "COMPLETED",
+      "COMMITTED",
+      "ROLLED_BACK"
+    ],
+    "initial": "ACTIVE",
+    "terminal": [
+      "COMMITTED",
+      "ROLLED_BACK"
+    ],
+    "transitions": [
+      {
+        "from": "ACTIVE",
+        "to": "ACTIVE",
+        "action": "POST /api/tools/execute"
+      },
+      {
+        "from": "ACTIVE",
+        "to": "COMPLETED",
+        "action": "POST /api/sessions/{session_id}/complete"
+      },
+      {
+        "from": "ACTIVE",
+        "to": "ROLLED_BACK",
+        "action": "POST /api/sessions/{session_id}/rollback"
+      },
+      {
+        "from": "COMPLETED",
+        "to": "COMMITTED",
+        "action": "POST /api/sessions/{session_id}/commit"
+      },
+      {
+        "from": "COMPLETED",
+        "to": "COMPLETED",
+        "action": "POST /api/sessions/{session_id}/commit (failed: conflict or database failure)"
+      },
+      {
+        "from": "COMPLETED",
+        "to": "ROLLED_BACK",
+        "action": "POST /api/sessions/{session_id}/rollback"
+      }
+    ]
+  }
+}

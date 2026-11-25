@@ -1,0 +1,371 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://airlock.local/contracts/error.schema.json",
+  "$comment": "Airlock Contracts v1.2.0.",
+  "title": "AirlockErrorResponse",
+  "description": "Standard error envelope returned by every non-2xx Airlock response (the Starlette Host-header rejection is the only documented exception).",
+  "type": "object",
+  "required": [
+    "error"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "error": {
+      "type": "object",
+      "required": [
+        "code",
+        "message",
+        "http_status",
+        "timestamp",
+        "request_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "INVALID_SESSION",
+            "INVALID_TOOL",
+            "INVALID_ARGUMENTS",
+            "INVOICE_NOT_FOUND",
+            "UNAUTHORIZED_AGENT",
+            "UNAUTHORIZED_REVIEWER",
+            "INVALID_SESSION_STATE",
+            "POLICY_BLOCK",
+            "COMMIT_CONFLICT",
+            "DATABASE_FAILURE",
+            "SESSION_ALREADY_FINALIZED",
+            "FORBIDDEN",
+            "INTERNAL_ERROR"
+          ],
+          "description": "Machine-readable Airlock error code. Each code maps to exactly one HTTP status (enforced below)."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable explanation. Never contains secrets, tokens, or raw request content."
+        },
+        "http_status": {
+          "type": "integer",
+          "enum": [
+            400,
+            401,
+            403,
+            404,
+            409,
+            422,
+            500
+          ]
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Structured metadata. Typed shapes per code are defined in api.schema.json ($defs/*Details)."
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "description": "Unique request correlation ID (UUID v4)."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+          "description": "UTC ISO 8601 timestamp ending in Z."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "INVALID_SESSION"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 404
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "INVALID_TOOL"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 400
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "INVALID_ARGUMENTS"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 422
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "INVOICE_NOT_FOUND"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 404
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "UNAUTHORIZED_AGENT"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 401
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "UNAUTHORIZED_REVIEWER"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 401
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "INVALID_SESSION_STATE"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 409
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "POLICY_BLOCK"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 403
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "COMMIT_CONFLICT"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 409
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "DATABASE_FAILURE"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 500
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "SESSION_ALREADY_FINALIZED"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 409
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "FORBIDDEN"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 403
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "const": "INTERNAL_ERROR"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          },
+          "then": {
+            "properties": {
+              "http_status": {
+                "const": 500
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "x-error-http-status": {
+    "INVALID_SESSION": 404,
+    "INVALID_TOOL": 400,
+    "INVALID_ARGUMENTS": 422,
+    "INVOICE_NOT_FOUND": 404,
+    "UNAUTHORIZED_AGENT": 401,
+    "UNAUTHORIZED_REVIEWER": 401,
+    "INVALID_SESSION_STATE": 409,
+    "POLICY_BLOCK": 403,
+    "COMMIT_CONFLICT": 409,
+    "DATABASE_FAILURE": 500,
+    "SESSION_ALREADY_FINALIZED": 409,
+    "FORBIDDEN": 403,
+    "INTERNAL_ERROR": 500
+  },
+  "examples": [
+    {
+      "error": {
+        "code": "POLICY_BLOCK",
+        "message": "Session cannot be committed because gate_decision is BLOCK.",
+        "http_status": 403,
+        "details": {
+          "gate_decision": "BLOCK",
+          "blocking_policy_ids": [
+            "POL-003",
+            "POL-004"
+          ]
+        },
+        "request_id": "f5a9c3e7-2b8d-4f16-a47c-9e1d3b5a7c09",
+        "timestamp": "2026-11-24T12:02:20Z"
+      }
+    },
+    {
+      "error": {
+        "code": "UNAUTHORIZED_REVIEWER",
+        "message": "Missing or invalid reviewer bearer token. Agent tokens cannot authorize reviewer actions.",
+        "http_status": 401,
+        "details": {},
+        "request_id": "41486e1e-9d47-488a-86b1-ae5a72dff0f6",
+        "timestamp": "2026-11-24T12:02:10Z"
+      }
+    }
+  ]
+}

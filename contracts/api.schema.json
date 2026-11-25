@@ -1,0 +1,638 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://airlock.local/contracts/api.schema.json",
+  "$comment": "Airlock Contracts v1.2.0. Request/response schemas for every endpoint not already covered by manifest.schema.json or error.schema.json.",
+  "title": "AirlockApiSchemas",
+  "description": "Collection of $defs. Validate an instance by referencing e.g. api.schema.json#/$defs/CreateSessionRequest. All schemas must be loaded into the validator registry by $id.",
+  "$defs": {
+    "EmptyObject": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "HealthResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "prod_db_connected",
+        "meta_db_connected",
+        "prod_invoice_count",
+        "active_sessions",
+        "contracts_loaded",
+        "timestamp"
+      ],
+      "properties": {
+        "status": {
+          "const": "ok"
+        },
+        "prod_db_connected": {
+          "const": true
+        },
+        "meta_db_connected": {
+          "const": true
+        },
+        "prod_invoice_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "active_sessions": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sessions with execution_status ACTIVE."
+        },
+        "contracts_loaded": {
+          "const": true
+        },
+        "timestamp": {
+          "$ref": "manifest.schema.json#/$defs/UtcTimestamp"
+        }
+      }
+    },
+    "CreateSessionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_name"
+      ],
+      "properties": {
+        "agent_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "\\S"
+        },
+        "task_description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        }
+      }
+    },
+    "CreateSessionResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "agent_name",
+        "task_description",
+        "execution_status",
+        "gate_decision",
+        "human_review_status",
+        "baseline_record_count",
+        "created_at"
+      ],
+      "properties": {
+        "session_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "agent_name": {
+          "type": "string"
+        },
+        "task_description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "execution_status": {
+          "const": "ACTIVE"
+        },
+        "gate_decision": {
+          "const": "PENDING"
+        },
+        "human_review_status": {
+          "const": "PENDING"
+        },
+        "baseline_record_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "created_at": {
+          "$ref": "manifest.schema.json#/$defs/UtcTimestamp"
+        }
+      }
+    },
+    "SessionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "agent_name",
+        "task_description",
+        "created_at",
+        "updated_at",
+        "execution_status",
+        "gate_decision",
+        "human_review_status",
+        "mutation_counts",
+        "risk_summary"
+      ],
+      "properties": {
+        "session_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "agent_name": {
+          "type": "string"
+        },
+        "task_description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_at": {
+          "$ref": "manifest.schema.json#/$defs/UtcTimestamp"
+        },
+        "updated_at": {
+          "$ref": "manifest.schema.json#/$defs/UtcTimestamp"
+        },
+        "execution_status": {
+          "$ref": "manifest.schema.json#/$defs/ExecutionStatus"
+        },
+        "gate_decision": {
+          "$ref": "manifest.schema.json#/$defs/GateDecision"
+        },
+        "human_review_status": {
+          "$ref": "manifest.schema.json#/$defs/HumanReviewStatus"
+        },
+        "mutation_counts": {
+          "$ref": "manifest.schema.json#/$defs/MutationCounts"
+        },
+        "risk_summary": {
+          "$ref": "manifest.schema.json#/$defs/RiskSummary"
+        }
+      }
+    },
+    "SessionListResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "sessions"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionSummary"
+          }
+        }
+      }
+    },
+    "ExecuteRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "tool_name",
+        "arguments"
+      ],
+      "properties": {
+        "session_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "tool_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "ExecuteSuccessResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "session_id",
+        "tool_name",
+        "status",
+        "read_only",
+        "tool_decision",
+        "session_gate_decision",
+        "mutations_recorded",
+        "policy_violations",
+        "result",
+        "executed_at"
+      ],
+      "properties": {
+        "operation_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "session_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "tool_name": {
+          "type": "string"
+        },
+        "status": {
+          "const": "SUCCESS",
+          "description": "HTTP 200 always means SUCCESS. Blocked/failed calls use error.schema.json envelopes (non-2xx)."
+        },
+        "read_only": {
+          "type": "boolean"
+        },
+        "tool_decision": {
+          "enum": [
+            "ALLOW",
+            "REQUIRE_APPROVAL"
+          ]
+        },
+        "session_gate_decision": {
+          "$ref": "manifest.schema.json#/$defs/GateDecision"
+        },
+        "mutations_recorded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "policy_violations": {
+          "type": "array",
+          "items": {
+            "$ref": "manifest.schema.json#/$defs/PolicyViolation"
+          }
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "executed_at": {
+          "$ref": "manifest.schema.json#/$defs/UtcTimestamp"
+        }
+      }
+    },
+    "CompleteRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent_summary": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000
+        }
+      }
+    },
+    "ReviewerActionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewer"
+      ],
+      "properties": {
+        "reviewer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "\\S"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        }
+      }
+    },
+    "ResetResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "prod_invoice_count",
+        "overdue_count",
+        "non_overdue_count",
+        "cleared_sessions",
+        "timestamp"
+      ],
+      "properties": {
+        "status": {
+          "const": "reset_complete"
+        },
+        "prod_invoice_count": {
+          "const": 500
+        },
+        "overdue_count": {
+          "const": 420
+        },
+        "non_overdue_count": {
+          "const": 80
+        },
+        "cleared_sessions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timestamp": {
+          "$ref": "manifest.schema.json#/$defs/UtcTimestamp"
+        }
+      }
+    },
+    "CommitLedgerReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One row of airlock_commit_ledger in airlock_prod.db, inserted in the SAME SQLite transaction as the production mutations. UNIQUE(session_id).",
+      "required": [
+        "ledger_id",
+        "session_id",
+        "committed_at",
+        "reviewer",
+        "reason",
+        "gate_decision",
+        "baseline_record_count",
+        "inserted_count",
+        "updated_count",
+        "deleted_count",
+        "mutation_digest"
+      ],
+      "properties": {
+        "ledger_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "session_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "committed_at": {
+          "$ref": "manifest.schema.json#/$defs/UtcTimestamp"
+        },
+        "reviewer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "gate_decision": {
+          "enum": [
+            "ALLOW",
+            "REQUIRE_APPROVAL"
+          ]
+        },
+        "baseline_record_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inserted_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "updated_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deleted_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mutation_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 (lowercase hex) of the canonical JSON of the applied mutation set; see API_CONTRACT.md section 8.2."
+        }
+      }
+    },
+    "ToolPolicyBlockDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "tool_name",
+        "tool_decision",
+        "session_gate_decision",
+        "policy_violations"
+      ],
+      "properties": {
+        "operation_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "tool_name": {
+          "type": "string"
+        },
+        "tool_decision": {
+          "const": "BLOCK"
+        },
+        "session_gate_decision": {
+          "$ref": "manifest.schema.json#/$defs/GateDecision"
+        },
+        "policy_violations": {
+          "type": "array",
+          "items": {
+            "$ref": "manifest.schema.json#/$defs/PolicyViolation"
+          }
+        }
+      }
+    },
+    "SessionBlockedDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "operation_id",
+        "tool_name",
+        "tool_decision",
+        "session_gate_decision",
+        "blocking_policy_ids"
+      ],
+      "properties": {
+        "reason": {
+          "const": "SESSION_BLOCKED"
+        },
+        "operation_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "tool_name": {
+          "type": "string"
+        },
+        "tool_decision": {
+          "const": "BLOCK"
+        },
+        "session_gate_decision": {
+          "const": "BLOCK"
+        },
+        "blocking_policy_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^POL-\\d{3}$"
+          }
+        }
+      }
+    },
+    "InvalidToolDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "tool_name",
+        "tool_decision",
+        "session_gate_decision",
+        "policy_violations"
+      ],
+      "properties": {
+        "operation_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "tool_name": {
+          "type": "string"
+        },
+        "tool_decision": {
+          "const": "BLOCK"
+        },
+        "session_gate_decision": {
+          "$ref": "manifest.schema.json#/$defs/GateDecision"
+        },
+        "policy_violations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "manifest.schema.json#/$defs/PolicyViolation"
+          }
+        }
+      }
+    },
+    "InvalidArgumentsDetails": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "reason"
+      ],
+      "properties": {
+        "reason": {
+          "enum": [
+            "SCHEMA_VALIDATION",
+            "SECRET_IN_ARGUMENT",
+            "MALFORMED_REQUEST"
+          ]
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "message"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "InvoiceNotFoundDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "missing_count",
+        "missing_invoice_ids",
+        "truncated"
+      ],
+      "properties": {
+        "operation_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        },
+        "missing_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "missing_invoice_ids": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "pattern": "^INV-\\d{4}$"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CommitConflictDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "conflict_count",
+        "truncated",
+        "conflicts"
+      ],
+      "properties": {
+        "conflict_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "conflicts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "$ref": "manifest.schema.json#/$defs/ConflictDetail"
+          }
+        }
+      }
+    },
+    "CommitDurableDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit_durable",
+        "ledger_id"
+      ],
+      "properties": {
+        "commit_durable": {
+          "const": true
+        },
+        "ledger_id": {
+          "$ref": "manifest.schema.json#/$defs/Uuid4"
+        }
+      },
+      "description": "details of DATABASE_FAILURE when the production COMMIT (mutations + ledger receipt) succeeded but the metadata update failed; reconciliation will finalize the session."
+    },
+    "PolicyBlockCommitDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate_decision",
+        "blocking_policy_ids"
+      ],
+      "properties": {
+        "gate_decision": {
+          "const": "BLOCK"
+        },
+        "blocking_policy_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^POL-\\d{3}$"
+          }
+        }
+      }
+    }
+  }
+}

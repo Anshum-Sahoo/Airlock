@@ -1,0 +1,77 @@
+{
+  "session_id": "22f73cbf-6945-4a5d-8590-81a94cb86c6b",
+  "agent_name": "nemotron-billing-agent",
+  "task_description": null,
+  "agent_summary": null,
+  "created_at": "2026-11-24T12:19:00Z",
+  "updated_at": "2026-11-24T12:20:10Z",
+  "completed_at": null,
+  "finalized_at": null,
+  "execution_status": "ACTIVE",
+  "gate_decision": "PENDING",
+  "human_review_status": "PENDING",
+  "baseline_record_count": 500,
+  "risk_summary": {
+    "overall_risk_level": "CRITICAL",
+    "total_mutations": 0,
+    "affected_percentage": 0.0,
+    "violation_count": 1,
+    "block_count": 1,
+    "require_approval_count": 0,
+    "staged_webhook_count": 0,
+    "summary_text": "0 mutations, 0 webhooks staged, 1 policy violation (1 BLOCK, tool-level)."
+  },
+  "mutation_counts": {
+    "inserted": 0,
+    "updated": 0,
+    "deleted": 0,
+    "total": 0
+  },
+  "mutations": {
+    "inserted": [],
+    "updated": [],
+    "deleted": []
+  },
+  "staged_webhooks": [],
+  "policy_violations": [
+    {
+      "policy_id": "POL-005",
+      "policy_name": "Unknown Tool Rejection",
+      "severity": "CRITICAL",
+      "decision": "BLOCK",
+      "effect_scope": "TOOL",
+      "stage": "TOOL_EXECUTE",
+      "operation_id": "fb59fe1c-045c-4898-b989-90b5874ea4ba",
+      "explanation": "Tool 'drop_all_tables' is not in the tools.json allowlist.",
+      "affected_record_count": null,
+      "timestamp": "2026-11-24T12:20:00Z"
+    }
+  ],
+  "tool_execution_history": [
+    {
+      "operation_id": "fb59fe1c-045c-4898-b989-90b5874ea4ba",
+      "tool_name": "drop_all_tables",
+      "arguments": {},
+      "read_only": null,
+      "status": "BLOCKED",
+      "tool_decision": "BLOCK",
+      "mutations_recorded": 0,
+      "error_code": "INVALID_TOOL",
+      "executed_at": "2026-11-24T12:20:00Z"
+    },
+    {
+      "operation_id": "c5e41039-c0b3-450d-8d33-dc026968267b",
+      "tool_name": "list_invoices",
+      "arguments": {
+        "limit": 5
+      },
+      "read_only": true,
+      "status": "SUCCESS",
+      "tool_decision": "ALLOW",
+      "mutations_recorded": 0,
+      "error_code": null,
+      "executed_at": "2026-11-24T12:20:10Z"
+    }
+  ],
+  "finalization_result": null
+}
