@@ -1,0 +1,12 @@
+# Replace placeholders with actual GitHub usernames.
+# CODEOWNERS routes reviews; it does not restrict who can edit files on a branch.
+* @Anshum-Sahoo
+/contracts/ @Anshum-Sahoo
+/backend/ @Anshum-Sahoo
+/scripts/ @Anshum-Sahoo
+/docs/ @Anshum-Sahoo
+
+# Uncomment after replacing usernames; these paths are planned workspaces.
+#/frontend/ @FRONTEND_GITHUB_USERNAME
+#/agent/ @AGENT_GITHUB_USERNAME
+#/security-tests/ @QA_GITHUB_USERNAME

@@ -1,0 +1,55 @@
+name: Feature / task
+description: Define a scoped Airlock implementation task
+title: "[TASK] "
+labels: ["task"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What outcome should this task deliver?
+      placeholder: Build the session list view using the documented API.
+    validations:
+      required: true
+  - type: dropdown
+    id: workstream
+    attributes:
+      label: Workstream
+      options:
+        - Backend / security (integration lead)
+        - Frontend
+        - Nemotron agent
+        - QA / security tests
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: allowed_paths
+    attributes:
+      label: Allowed paths
+      description: List folders/files this task may change.
+      placeholder: frontend/app/, frontend/components/, frontend/lib/
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: List files, folders, APIs, or behaviors that must not change.
+      placeholder: Do not edit backend/, contracts/, or database code.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable conditions required for completion.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Commands, test cases, screenshots, or manual steps.
+    validations:
+      required: true
