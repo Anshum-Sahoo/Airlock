@@ -1,0 +1,52 @@
+name: Bug report
+description: Report a reproducible Airlock defect
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Bug summary
+      description: What is broken?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start the backend.
+        2. Create a session.
+        3. Submit the tool call.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs / screenshots / environment
+      description: Redact tokens, keys, personal data, and sensitive payloads.
+    validations:
+      required: false
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical - unsafe production mutation or security bypass
+        - High - core workflow blocked
+        - Medium - feature degraded
+        - Low - cosmetic or minor issue
+    validations:
+      required: true
