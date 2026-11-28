@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 const worker = "http://127.0.0.1:8765/session";
-type Run = { session_id: string | null; status: string; results: string[] };
+type Run = { mode?: string; session_id: string | null; status: string; results: string[] };
 
 export function NewSession({ onCreated }: { onCreated: (id: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -46,7 +46,7 @@ export function NewSession({ onCreated }: { onCreated: (id: string) => void }) {
         headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, scenario, invoice_id: single ? invoice : undefined }) });
       if (!response.ok) throw new Error(response.status === 409 ? "A session is already running." : "Check that the Airlock backend is running, then try again.");
       const { session_id } = await response.json();
-      setRun({ session_id, status: "Running", results: [] });
+      setRun({ mode: run?.mode, session_id, status: "Running", results: [] });
       onCreated(session_id);
       setOpen(false);
       trigger.current?.focus();
@@ -56,7 +56,7 @@ export function NewSession({ onCreated }: { onCreated: (id: string) => void }) {
   }
   return <section className="run-panel">
     <div className="flex items-center justify-between gap-3">
-      <div><h2>Agent control</h2><span role="status" className="worker-status">{connected === null ? "Connecting to worker..." : connected ? "Nemotron worker online" : "Worker offline · start Run-NemotronDemo.ps1 -Worker"}</span></div>
+      <div><h2>Agent control</h2><span role="status" className="worker-status">{connected === null ? "Connecting to worker..." : connected ? (run?.mode === "deterministic" ? "Local demo worker online" : "Nemotron worker online") : "Worker offline · start Run-NemotronDemo.ps1 -Worker"}</span></div>
       <button ref={trigger} disabled={pending} aria-expanded={open} className={open ? "cancel-session" : "rounded bg-blue-600 px-3 py-2 text-white"} onClick={() => { setError(""); setOpen(!open); }}>
         {open ? "Cancel" : "New session"}</button>
     </div>
