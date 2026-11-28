@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { MutationTable } from "@/components/MutationTable";
 import { NewSession } from "@/components/NewSession";
-import { HealthBar } from "@/components/HealthBar";
 import { TokenInput } from "@/components/TokenInput";
 import { SessionList } from "@/components/SessionList";
 import { SessionDetail } from "@/components/SessionDetail";
@@ -261,7 +260,6 @@ export default function Dashboard({ children }: { children: React.ReactNode }) {
           </header>
 
           <main className="mx-auto max-w-[1600px] space-y-5 px-4 py-5 sm:px-7 sm:py-6">
-            <HealthBar className="rounded-lg border border-[#E5E6E8] bg-white px-3 py-2 shadow-[0_2px_8px_rgba(20,24,35,0.025)]" />
 
             {path === "/" && <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Session summary">
               <MetricCard label="Total sessions" value={sessionTotal} detail="Across all agent runs" tone="neutral" />
