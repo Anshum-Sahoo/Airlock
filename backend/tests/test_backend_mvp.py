@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import importlib
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -70,6 +71,19 @@ def test_role_separation_and_origin_precedes_auth(client):
     assert client.get(f"/api/sessions/{sid}").json()["execution_status"] == "ACTIVE"
 
 
+def test_unknown_tool_error_and_history_match_contract(client):
+    sid = new_session(client)
+    response = client.post("/api/tools/execute", headers=auth(), json={"session_id":sid,"tool_name":"drop_all_tables","arguments":{}})
+    assert response.status_code == 400
+    details = response.json()["error"]["details"]
+    assert_api_schema("InvalidToolDetails", details)
+    assert details["policy_violations"][0]["policy_id"] == "POL-005"
+    assert len(details["policy_violations"]) == 1
+    manifest = client.get(f"/api/sessions/{sid}").json()
+    assert manifest["tool_execution_history"][-1]["read_only"] is None
+    assert_manifest(manifest)
+
+
 def test_delete_thresholds(client):
     for count, expected in ((400,"ALLOW"),(401,"REQUIRE_APPROVAL"),(420,"REQUIRE_APPROVAL")):
         sid = new_session(client)
@@ -127,6 +141,41 @@ def test_conflict_prevents_commit(client):
     assert conn.execute("SELECT status,notes FROM invoices WHERE id='INV-0042'").fetchone() == ("OVERDUE","concurrent edit")
     assert conn.execute("SELECT COUNT(*) FROM airlock_commit_ledger WHERE session_id=?",(sid,)).fetchone()[0] == 0
     conn.close()
+
+
+def test_durable_commit_reconciles_on_retry_without_replay(client, monkeypatch):
+    sid = new_session(client)
+    client.post("/api/tools/execute", headers=auth(), json={"session_id":sid,"tool_name":"update_invoice","arguments":{"invoice_id":"INV-0042","status":"PAID"}})
+    client.post(f"/api/sessions/{sid}/complete", headers=auth(), json={})
+    from backend.app.config import get_settings
+    main = importlib.import_module("backend.app.main")
+    save = main.save_manifest
+    failed = False
+
+    def fail_once_on_commit(manifest):
+        nonlocal failed
+        if manifest["execution_status"] == "COMMITTED" and not failed:
+            failed = True
+            raise sqlite3.OperationalError("injected metadata failure")
+        return save(manifest)
+
+    monkeypatch.setattr(main, "save_manifest", fail_once_on_commit)
+    response = client.post(f"/api/sessions/{sid}/commit", headers=auth("reviewer"), json={"reviewer":"qa"})
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "DATABASE_FAILURE"
+    details = response.json()["error"]["details"]
+    assert_api_schema("CommitDurableDetails", details)
+    assert details["commit_durable"] is True and details["ledger_id"]
+
+    retry = client.post(f"/api/sessions/{sid}/commit", headers=auth("reviewer"), json={"reviewer":"qa"})
+    assert retry.status_code == 409
+    assert retry.json()["error"]["code"] == "SESSION_ALREADY_FINALIZED"
+    manifest = client.get(f"/api/sessions/{sid}").json()
+    assert manifest["execution_status"] == "COMMITTED"
+    assert manifest["finalization_result"]["recovered"] is True
+    with sqlite3.connect(get_settings().airlock_prod_db_path) as conn:
+        assert conn.execute("SELECT status,version FROM invoices WHERE id='INV-0042'").fetchone() == ("PAID",2)
+        assert conn.execute("SELECT COUNT(*) FROM airlock_commit_ledger WHERE session_id=?",(sid,)).fetchone()[0] == 1
 
 def test_webhook_secret_block_redacted_and_never_dispatched(client, project_env):
     sid = new_session(client)
