@@ -269,8 +269,8 @@ def execute_locked(body):
     if m["execution_status"] != "ACTIVE": err(409,"INVALID_SESSION_STATE","Tools are only available for ACTIVE sessions.")
     tool=TOOLS.get(name)
     if not tool:
-        p=next(x for x in POLICIES["policies"] if x["policy_id"]=="POL-005"); m["policy_violations"].append(violation(p,"TOOL_EXECUTE",op,f"Tool '{name}' is not in the tools.json allowlist.")); m["tool_execution_history"].append({"operation_id":op,"tool_name":clean(name),"arguments":clean(body["arguments"]),"read_only":False,"status":"BLOCKED","tool_decision":"BLOCK","mutations_recorded":0,"error_code":"INVALID_TOOL","executed_at":now()}); risk(m); save_manifest(m)
-        err(400,"INVALID_TOOL",f"Tool '{name}' is not in the tools.json allowlist; the call was blocked and not executed.",{"operation_id":op,"tool_name":name,"tool_decision":"BLOCK","session_gate_decision":m["gate_decision"]})
+        p=next(x for x in POLICIES["policies"] if x["policy_id"]=="POL-005"); pol=violation(p,"TOOL_EXECUTE",op,f"Tool '{name}' is not in the tools.json allowlist."); m["policy_violations"].append(pol); m["tool_execution_history"].append({"operation_id":op,"tool_name":clean(name),"arguments":clean(body["arguments"]),"read_only":None,"status":"BLOCKED","tool_decision":"BLOCK","mutations_recorded":0,"error_code":"INVALID_TOOL","executed_at":now()}); risk(m); save_manifest(m)
+        err(400,"INVALID_TOOL",f"Tool '{name}' is not in the tools.json allowlist; the call was blocked and not executed.",{"operation_id":op,"tool_name":name,"tool_decision":"BLOCK","session_gate_decision":m["gate_decision"],"policy_violations":[pol]})
     args=body["arguments"]
     if list(Draft202012Validator(tool["parameters"],format_checker=FormatChecker(),registry=REGISTRY).iter_errors(args)): err(422,"INVALID_ARGUMENTS","Tool arguments failed validation.")
     read_only=tool["read_only"]
@@ -371,9 +371,9 @@ async def rollback(session_id: str, request: Request):
     origin_guard(request); bearer(request,"reviewer"); body=await reviewer_body(request)
     with LOCK:
         m=read_manifest(session_id)
+        if reconcile_session(session_id, m): err(409,"SESSION_ALREADY_FINALIZED","Session is already finalized.")
         if m["execution_status"] in ("COMMITTED","ROLLED_BACK"): err(409,"SESSION_ALREADY_FINALIZED","Session is already finalized.")
         if m["execution_status"] not in ("ACTIVE","COMPLETED"): err(409,"INVALID_SESSION_STATE","Session cannot be rolled back.")
-        if read_receipt(session_id): err(409,"SESSION_ALREADY_FINALIZED","Session already has a durable commit receipt.")
         finalize(m,"ROLLBACK",body); (settings.airlock_speculative_dir/f"{session_id}.db").unlink(missing_ok=True); return m
 
 
@@ -385,14 +385,21 @@ def reconcile_sessions():
     with _connect(settings.airlock_meta_db_path) as conn:
         rows = conn.execute("SELECT session_id,manifest_json FROM sessions").fetchall()
     for row in rows:
-        receipt = read_receipt(row["session_id"])
-        m = json.loads(row["manifest_json"])
-        if receipt and m["execution_status"] not in ("COMMITTED", "ROLLED_BACK"):
-            m["execution_status"] = "COMMITTED"; m["gate_decision"] = receipt["gate_decision"]
-            m["human_review_status"] = "APPROVED"; m["finalized_at"] = receipt["committed_at"]
-            m["finalization_result"] = {"action":"COMMIT","status":"SUCCESS","actor":receipt["reviewer"],"reason":receipt["reason"],"timestamp":receipt["committed_at"],"applied_counts":{"inserted":receipt["inserted_count"],"updated":receipt["updated_count"],"deleted":receipt["deleted_count"]},"conflict_details":None,"ledger_id":receipt["ledger_id"],"recovered":True}
-            save_manifest(m)
-            (settings.airlock_speculative_dir/f"{row['session_id']}.db").unlink(missing_ok=True)
+        reconcile_session(row["session_id"], json.loads(row["manifest_json"]))
+
+
+def reconcile_session(session_id, manifest=None):
+    receipt = read_receipt(session_id)
+    if not receipt:
+        return False
+    m = manifest or read_manifest(session_id)
+    if m["execution_status"] not in ("COMMITTED", "ROLLED_BACK"):
+        m["execution_status"] = "COMMITTED"; m["gate_decision"] = receipt["gate_decision"]
+        m["human_review_status"] = "APPROVED"; m["finalized_at"] = receipt["committed_at"]
+        m["finalization_result"] = {"action":"COMMIT","status":"SUCCESS","actor":receipt["reviewer"],"reason":receipt["reason"],"timestamp":receipt["committed_at"],"applied_counts":{"inserted":receipt["inserted_count"],"updated":receipt["updated_count"],"deleted":receipt["deleted_count"]},"conflict_details":None,"ledger_id":receipt["ledger_id"],"recovered":True}
+        save_manifest(m)
+        (settings.airlock_speculative_dir/f"{session_id}.db").unlink(missing_ok=True)
+    return True
 
 
 @app.post("/api/sessions/{session_id}/commit")
@@ -400,7 +407,8 @@ async def commit(session_id: str, request: Request):
     origin_guard(request); bearer(request,"reviewer"); body=await reviewer_body(request)
     with LOCK:
         m=read_manifest(session_id)
-        if m["execution_status"] in ("COMMITTED","ROLLED_BACK") or read_receipt(session_id): err(409,"SESSION_ALREADY_FINALIZED","Session is already finalized.")
+        if reconcile_session(session_id, m): err(409,"SESSION_ALREADY_FINALIZED","Session is already finalized.")
+        if m["execution_status"] in ("COMMITTED","ROLLED_BACK"): err(409,"SESSION_ALREADY_FINALIZED","Session is already finalized.")
         if m["execution_status"]!="COMPLETED": err(409,"INVALID_SESSION_STATE","Only COMPLETED sessions can be committed.")
         if m["gate_decision"]=="BLOCK": err(403,"POLICY_BLOCK","Session cannot be committed because gate_decision is BLOCK.",{"gate_decision":"BLOCK","blocking_policy_ids":[v["policy_id"] for v in m["policy_violations"] if v["decision"]=="BLOCK"]})
         records=sorted([x for group in m["mutations"].values() for x in group],key=lambda x:x["entity_id"]); conflicts=[]
@@ -430,7 +438,11 @@ async def commit(session_id: str, request: Request):
         except Exception:
             conn.rollback(); raise
         finally: conn.close()
-        finalize(m,"COMMIT",body,ledger_id=ledger,counts=counts); (settings.airlock_speculative_dir/f"{session_id}.db").unlink(missing_ok=True); return m
+        try:
+            finalize(m,"COMMIT",body,ledger_id=ledger,counts=counts)
+        except Exception:
+            err(500,"DATABASE_FAILURE","The production commit is durable but the session record could not be updated; reconciliation will finalize it.",{"commit_durable":True,"ledger_id":ledger})
+        (settings.airlock_speculative_dir/f"{session_id}.db").unlink(missing_ok=True); return m
 
 
 @app.post("/api/demo/reset")
