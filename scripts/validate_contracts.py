@@ -22,6 +22,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PKG = os.path.dirname(HERE)
 CONTRACTS = os.path.join(PKG, "contracts")
 DEFAULT_CONTRACTS = CONTRACTS
+IGNORED_DIRS = {".git", ".next", ".venv", "__pycache__", "build", "coverage", "dist", "node_modules", "venv"}
 BASE = "https://airlock.local/contracts/"
 UUID4_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 UUID_ANY_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
@@ -174,6 +175,7 @@ def validate(inst, schema, reg, base, path="$"):
 def load_all():
     data = {}
     for root, dirs, files in os.walk(PKG):
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
         if os.path.abspath(root) == os.path.abspath(DEFAULT_CONTRACTS):
             dirs.clear()
             continue
