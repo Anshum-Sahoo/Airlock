@@ -20,27 +20,27 @@ interface BadgeProps {
 }
 
 const VARIANT_STYLES: Record<BadgeVariant, string> = {
-  ok:     "bg-[rgba(34,197,94,0.1)]  text-[#22C55E] border border-[rgba(34,197,94,0.3)]",
-  warn:   "bg-[rgba(245,158,11,0.1)] text-[#F59E0B] border border-[rgba(245,158,11,0.3)]",
-  danger: "bg-[rgba(239,68,68,0.1)]  text-[#EF4444] border border-[rgba(239,68,68,0.3)]",
-  blue:   "bg-[rgba(59,130,246,0.1)] text-[#3B82F6] border border-[rgba(59,130,246,0.3)]",
-  cyan:   "bg-[rgba(6,182,212,0.1)]  text-[#06B6D4] border border-[rgba(6,182,212,0.3)]",
-  muted:  "bg-[rgba(148,163,184,0.1)] text-[#94A3B8] border border-[rgba(148,163,184,0.3)]",
+  ok:     "bg-[#EAF5EF] text-[#347B55] border border-[#D5E9DC]",
+  warn:   "bg-[#FFF3E8] text-[#B75E25] border border-[#F4E0CF]",
+  danger: "bg-[#FDECE9] text-[#C94D3A] border border-[#F2D6D1]",
+  blue:   "bg-[#FFF0EB] text-[#C94D3A] border border-[#F2D9D2]",
+  cyan:   "bg-[#F4F5F6] text-[#62666D] border border-[#E6E7E9]",
+  muted:  "bg-[#F5F5F6] text-[#686B70] border border-[#E7E8EA]",
 };
 
 export function Badge({ label, variant, pulse }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-widest font-sans ${VARIANT_STYLES[variant]}`}
+      className={`inline-flex min-h-6 items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-medium leading-none tracking-normal font-sans ${VARIANT_STYLES[variant]}`}
     >
       {pulse && (
         <span
           className={`inline-block w-1.5 h-1.5 rounded-full animate-pulse ${
-            variant === "ok" ? "bg-[#22C55E]" :
-            variant === "warn" ? "bg-[#F59E0B]" :
-            variant === "danger" ? "bg-[#EF4444]" :
-            variant === "blue" ? "bg-[#3B82F6]" :
-            variant === "cyan" ? "bg-[#06B6D4]" : "bg-[#94A3B8]"
+            variant === "ok" ? "bg-[#4B9B6B]" :
+            variant === "warn" ? "bg-[#E56828]" :
+            variant === "danger" ? "bg-[#D85340]" :
+            variant === "blue" ? "bg-[#EF492F]" :
+            variant === "cyan" ? "bg-[#92959A]" : "bg-[#92959A]"
           }`}
         />
       )}

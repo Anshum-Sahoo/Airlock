@@ -1,3 +1,4 @@
+import Dashboard from "@/components/Dashboard";
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -12,9 +13,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-[#090D16] text-[#F8FAFC]">
-        {children}
+    <html lang="en">
+      <body className="min-h-screen bg-[#F4F5F7] text-[#191A1C]">
+        <Dashboard>{children}</Dashboard>
       </body>
     </html>
   );
