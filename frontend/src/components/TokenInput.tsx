@@ -53,7 +53,7 @@ export function TokenInput({ onTokenSet, hasToken }: TokenInputProps) {
           placeholder="Reviewer token…"
           autoComplete="off"
           className="
-            w-52 px-3 py-1.5 bg-[#0D1320] border border-[#263247] rounded
+            w-52 pl-3 pr-12 py-1.5 bg-[#0D1320] border border-[#263247] rounded
             text-xs text-[#F8FAFC] placeholder-[#94A3B8] font-mono
             focus:outline-none focus:border-[#3B82F6] focus:shadow-[0_0_0_1px_#3B82F6]
             transition-all
@@ -64,10 +64,10 @@ export function TokenInput({ onTokenSet, hasToken }: TokenInputProps) {
           type="button"
           onClick={() => setVisible((v) => !v)}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#F8FAFC] text-xs"
-          tabIndex={-1}
+          aria-pressed={visible}
           aria-label={visible ? "Hide token" : "Show token"}
         >
-          {visible ? "🙈" : "👁"}
+          {visible ? "Hide" : "Show"}
         </button>
       </div>
       <button
@@ -81,10 +81,10 @@ export function TokenInput({ onTokenSet, hasToken }: TokenInputProps) {
           transition-all
         "
       >
-        Set Token
+        Set token
       </button>
       <span className="text-[10px] text-[#94A3B8] ml-1">
-        Stored in page memory only. Lost on reload.
+        Cleared on reload.
       </span>
     </form>
   );

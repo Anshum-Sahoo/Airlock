@@ -1,5 +1,5 @@
 /**
- * Airlock Reviewer Dashboard — main page.
+ * Airlock Reviewer workspace — main page.
  *
  * Security model summary (API_CONTRACT.md §3.3):
  * - reviewerToken is React state (page-memory) only.
@@ -12,8 +12,9 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { HealthBar } from "@/components/HealthBar";
+import { NewSession } from "@/components/NewSession";
 import { TokenInput } from "@/components/TokenInput";
 import { SessionList } from "@/components/SessionList";
 import { SessionDetail } from "@/components/SessionDetail";
@@ -31,6 +32,12 @@ export default function DashboardPage() {
   // ---- Session list ----
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [sessionTotal, setSessionTotal] = useState(0);
+  const [showEarlier, setShowEarlier] = useState(false);
+  const start = process.env.NEXT_PUBLIC_DEMO_START;
+  const visibleSessions = start && !showEarlier
+    ? sessions.filter((session) => Date.parse(session.created_at) >= Date.parse(start))
+    : sessions;
+  const count = start && !showEarlier ? visibleSessions.length : sessionTotal;
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
 
@@ -59,17 +66,20 @@ export default function DashboardPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
+  const detailRequest = useRef(0);
   const loadDetail = useCallback(async (id: string) => {
+    const request = ++detailRequest.current;
     setDetailLoading(true);
     setDetailError(null);
     try {
       const m = await fetchSession(id);
-      setDetail(m);
+      if (request === detailRequest.current) setDetail(m);
     } catch (e) {
+      if (request !== detailRequest.current) return;
       setDetailError(e instanceof Error ? e.message : String(e));
       setDetail(null);
     } finally {
-      setDetailLoading(false);
+      if (request === detailRequest.current) setDetailLoading(false);
     }
   }, []);
 
@@ -107,18 +117,18 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#090D16]">
+    <div className="workspace">
       {/* Top health bar + meta */}
-      <HealthBar />
+
 
       {/* Top nav bar */}
       <header className="px-6 py-3 bg-[#0D1320] border-b border-[#263247] flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <span className="text-lg font-bold text-[#F8FAFC] tracking-tight">
-            ⬡ Airlock
+            Airlock
           </span>
           <span className="text-xs text-[#94A3B8] border-l border-[#263247] pl-3">
-            Reviewer Dashboard
+            Reviewer workspace
           </span>
           {MOCK_MODE && (
             <span className="text-[10px] px-2 py-0.5 rounded bg-[rgba(245,158,11,0.15)] border border-[rgba(245,158,11,0.3)] text-[#F59E0B] uppercase tracking-widest">
@@ -133,16 +143,29 @@ export default function DashboardPage() {
       </header>
 
       {/* Main layout: session list + detail */}
-      <main className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+      <div className="workspace-heading"><h1>Session monitor</h1><HealthBar /></div>
+      <main className="workspace-grid">
         {/* Left: session list */}
-        <div className="lg:w-[55%] border-r border-[#263247] overflow-auto">
+        <div className="session-pane">
+          {!MOCK_MODE && <NewSession onCreated={handleSelectSession} />}
           <div className="px-4 py-3 border-b border-[#263247] bg-[#0D1320] flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-widest text-[#94A3B8]">
-              Agent Sessions
+              Session history
             </span>
             <span className="text-xs font-mono tnum text-[#94A3B8]">
-              {sessionTotal} session{sessionTotal !== 1 ? "s" : ""}
+              {count} session{count !== 1 ? "s" : ""}
             </span>
+            {start && (
+              <button className="text-xs underline text-[#CBD5E1]" onClick={() => {
+                setShowEarlier(!showEarlier);
+                detailRequest.current++;
+                setSelectedId(null);
+                setDetail(null);
+                setDetailError(null);
+              }}>
+                {showEarlier ? "Hide earlier sessions" : "Show earlier sessions"}
+              </button>
+            )}
           </div>
 
           {sessionsError && (
@@ -153,7 +176,7 @@ export default function DashboardPage() {
           )}
 
           <SessionList
-            sessions={sessions}
+            sessions={visibleSessions}
             selectedId={selectedId}
             onSelect={handleSelectSession}
             loading={sessionsLoading}
@@ -162,12 +185,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Right: session detail */}
-        <div className="flex-1 overflow-auto p-4">
+        <div className="detail-pane">
           {!selectedId && (
             <div className="flex flex-col items-center justify-center h-64 text-center space-y-2">
-              <span className="text-3xl">⬡</span>
+              <h2 className="detail-title">Session inspector</h2>
               <p className="text-[#94A3B8] text-sm">
-                Select a session to review its mutations, violations, and take action.
+                Select a run to inspect its tool calls, invoice changes and policy decisions.
               </p>
             </div>
           )}
