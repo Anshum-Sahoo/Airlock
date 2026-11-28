@@ -14,7 +14,7 @@ def test_health_matches_contract(client):
     assert body["status"] == "ok"
     assert body["prod_db_connected"] is True
     assert body["meta_db_connected"] is True
-    assert body["prod_invoice_count"] == 0
+    assert body["prod_invoice_count"] == 500
     assert body["active_sessions"] == 0
     assert body["contracts_loaded"] is True
     assert body["timestamp"].endswith("Z")

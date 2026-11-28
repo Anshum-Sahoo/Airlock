@@ -29,6 +29,6 @@ def client(project_env):
     get_settings.cache_clear()
     import backend.app.main as main_module
     main_module = importlib.reload(main_module)
-    with TestClient(main_module.app) as test_client:
+    with TestClient(main_module.app, headers={"Host": "127.0.0.1"}, client=("127.0.0.1", 8000)) as test_client:
         yield test_client
     get_settings.cache_clear()
