@@ -137,3 +137,20 @@ def test_webhook_secret_block_redacted_and_never_dispatched(client, project_env)
     assert "sk_live_DEMO_REDACTED" not in manifest and "[REDACTED]" in manifest
     assert 'BLOCKED' in manifest
     assert b"sk_live_DEMO_REDACTED" not in (project_env / "meta.db").read_bytes()
+
+
+def test_session_list_returns_contract_summary_fields(client):
+    sid = new_session(client)
+    response = client.get("/api/sessions")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] == 1
+    assert len(body["sessions"]) == 1
+    summary = body["sessions"][0]
+    assert summary["session_id"] == sid
+    assert set(summary) == {
+        "session_id", "agent_name", "task_description", "created_at", "updated_at",
+        "execution_status", "gate_decision", "human_review_status",
+        "mutation_counts", "risk_summary",
+    }
+    assert summary["risk_summary"]["total_mutations"] == 0
