@@ -16,10 +16,10 @@ interface MutationTableProps {
   };
 }
 
-function formatValue(key: string, val: unknown): string {
+function formatValue(key: string, val: unknown, currency: string): string {
   if (val === null || val === undefined) return "—";
   if (key === "amount_cents" && typeof val === "number") {
-    return `$${(val / 100).toFixed(2)}`;
+    return `${currency} ${(val / 100).toFixed(2)}`;
   }
   return String(val);
 }
@@ -42,7 +42,7 @@ function InvoiceRow({ invoice, changed }: { invoice: Invoice; changed?: string[]
               </td>
               <td className={`px-2 py-1 font-mono border-b border-[#263247] ${isChanged ? "text-[#F59E0B]" : "text-[#F8FAFC]"}`}>
                 {/* Plain text — invoice fields are never redacted (§3.7) */}
-                {formatValue(f, invoice[f])}
+                {formatValue(f, invoice[f], invoice.currency)}
                 {isChanged && (
                   <span className="ml-2 text-[10px] text-[#F59E0B] uppercase tracking-widest">changed</span>
                 )}
