@@ -247,7 +247,7 @@ def list_sessions():
     with _connect(settings.airlock_meta_db_path) as conn: rows=conn.execute("SELECT manifest_json FROM sessions ORDER BY created_at DESC").fetchall()
     result=[]
     for row in rows:
-        m=json.loads(row[0]); result.append({k:m[k] for k in ("session_id","agent_name","execution_status","gate_decision","human_review_status","mutation_counts","created_at")})
+        m=json.loads(row[0]); result.append({k:m[k] for k in ("session_id","agent_name","task_description","created_at","updated_at","execution_status","gate_decision","human_review_status","mutation_counts","risk_summary")})
     return {"sessions":result,"total":len(result)}
 
 

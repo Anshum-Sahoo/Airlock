@@ -1,5 +1,27 @@
 import json
 import sqlite3
+from pathlib import Path
+
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
+
+
+CONTRACTS = Path(__file__).resolve().parents[2] / "contracts"
+API_SCHEMA = json.loads((CONTRACTS / "api.schema.json").read_text())
+MANIFEST_SCHEMA = json.loads((CONTRACTS / "manifest.schema.json").read_text())
+INVOICE_SCHEMA = json.loads((CONTRACTS / "invoice.schema.json").read_text())
+SCHEMA_REGISTRY = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in (API_SCHEMA, MANIFEST_SCHEMA, INVOICE_SCHEMA))
+
+
+def assert_api_schema(name, instance):
+    schema = API_SCHEMA["$defs"][name]
+    errors = list(Draft202012Validator(API_SCHEMA, registry=SCHEMA_REGISTRY).evolve(schema=schema).iter_errors(instance))
+    assert not errors, [error.message for error in errors]
+
+
+def assert_manifest(instance):
+    errors = list(Draft202012Validator(MANIFEST_SCHEMA, registry=SCHEMA_REGISTRY).iter_errors(instance))
+    assert not errors, [error.message for error in errors]
 
 
 def auth(role="agent"):
@@ -12,7 +34,21 @@ def auth(role="agent"):
 def new_session(client):
     r = client.post("/api/sessions", headers=auth(), json={"agent_name":"qa-agent"})
     assert r.status_code == 201, r.text
+    assert_api_schema("CreateSessionResponse", r.json())
     return r.json()["session_id"]
+
+
+def test_session_list_matches_contract(client):
+    sid = new_session(client)
+    assert_api_schema("HealthResponse", client.get("/api/health").json())
+    response = client.get("/api/sessions")
+    assert response.status_code == 200
+    assert_api_schema("SessionListResponse", response.json())
+    summary = response.json()["sessions"][0]
+    assert summary["task_description"] is None
+    assert summary["updated_at"]
+    assert summary["risk_summary"]
+    assert_manifest(client.get(f"/api/sessions/{sid}").json())
 
 
 def test_seed_and_agent_isolation(client, project_env):
@@ -20,6 +56,7 @@ def test_seed_and_agent_isolation(client, project_env):
     sid = new_session(client)
     result = client.post("/api/tools/execute", headers=auth(), json={"session_id":sid,"tool_name":"delete_invoice","arguments":{"invoice_id":"INV-0001"}})
     assert result.status_code == 200
+    assert_api_schema("ExecuteSuccessResponse", result.json())
     assert client.get("/api/health").json()["prod_invoice_count"] == 500
     assert not sqlite3.connect(project_env / "speculative" / f"{sid}.db").execute("SELECT 1 FROM invoices WHERE id='INV-0001'").fetchone()
 
@@ -38,8 +75,10 @@ def test_delete_thresholds(client):
         sid = new_session(client)
         deleted = client.post("/api/tools/execute", headers=auth(), json={"session_id":sid,"tool_name":"bulk_delete_invoices","arguments":{"invoice_ids":[f"INV-{n:04d}" for n in range(1,count+1)]}})
         assert deleted.status_code == 200
+        assert_api_schema("ExecuteSuccessResponse", deleted.json())
         complete = client.post(f"/api/sessions/{sid}/complete", headers=auth(), json={})
         assert complete.status_code == 200
+        assert_manifest(complete.json())
         assert complete.json()["gate_decision"] == expected
 
 
@@ -49,7 +88,7 @@ def test_rollback_and_commit_finalization(client):
     client.post(f"/api/sessions/{sid}/complete", headers=auth(), json={})
     response = client.post(f"/api/sessions/{sid}/commit", headers=auth("reviewer"), json={"reviewer":"qa"})
     assert response.status_code == 200 and response.json()["execution_status"] == "COMMITTED"
-    prod = client.app
+    assert_manifest(response.json())
     from backend.app.config import get_settings
     with sqlite3.connect(get_settings().airlock_prod_db_path) as conn:
         assert conn.execute("SELECT status,version FROM invoices WHERE id='INV-0042'").fetchone() == ("PAID",2)
@@ -61,6 +100,13 @@ def test_rollback_and_commit_finalization(client):
     before = client.get("/api/health").json()["prod_invoice_count"]
     rolled = client.post(f"/api/sessions/{sid2}/rollback", headers=auth("reviewer"), json={"reviewer":"qa"})
     assert rolled.status_code == 200 and client.get("/api/health").json()["prod_invoice_count"] == before
+    assert_manifest(rolled.json())
+
+
+def test_reset_response_matches_contract(client):
+    response = client.post("/api/demo/reset", headers=auth("reviewer"), json={})
+    assert response.status_code == 200
+    assert_api_schema("ResetResponse", response.json())
 
 
 def test_conflict_prevents_commit(client):
