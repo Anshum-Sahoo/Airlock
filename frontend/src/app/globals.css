@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    background-color: #090D16;
+    color: #F8FAFC;
+    font-family: Inter, ui-sans-serif, system-ui;
+  }
+
+  /* Thin scrollbar for data-dense panels */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0D1320;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #263247;
+    border-radius: 2px;
+  }
+}
+
+@layer utilities {
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .tnum { font-feature-settings: "tnum" 1; }
+}
