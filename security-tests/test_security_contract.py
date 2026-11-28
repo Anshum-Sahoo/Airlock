@@ -146,6 +146,26 @@ class LiveSecurity(unittest.TestCase):
                 "SELECT * FROM airlock_commit_ledger ORDER BY session_id")]
         return invoices, receipts
 
+    def test_session_list_matches_contract(self):
+        from jsonschema import Draft202012Validator, FormatChecker
+        from referencing import Registry, Resource
+
+        self.start(("POST", SESSIONS), ("GET", SESSIONS))
+        session_id = self.create()
+        api = contract("api.schema.json")
+        manifest = contract("manifest.schema.json")
+        registry = Registry().with_resources(
+            (schema["$id"], Resource.from_contents(schema)) for schema in (api, manifest)
+        )
+        validator = Draft202012Validator(
+            {"$ref": api["$id"] + "#/$defs/SessionListResponse"},
+            registry=registry, format_checker=FormatChecker(),
+        )
+        body = self.expect(self.client.get(SESSIONS), 200)
+        validator.validate(body)
+        self.assertEqual(body["total"], 1)
+        self.assertEqual([summary["session_id"] for summary in body["sessions"]], [session_id])
+
     def test_seed_distribution(self):
         response = self.start()
         invoices, receipts = self.production()
@@ -192,8 +212,6 @@ class LiveSecurity(unittest.TestCase):
         error = self.expect(self.tool(session_id, "qa_unknown_tool", {}), 400, "INVALID_TOOL")
         details = error["error"]["details"]
         self.assertEqual(details["session_gate_decision"], "PENDING")
-        self.assertEqual([(v["policy_id"], v["effect_scope"]) for v in details["policy_violations"]],
-                         [("POL-005", "TOOL")])
         after = self.expect(self.tool(session_id, "get_invoice", {"invoice_id": "INV-0001"}), 200)
         self.assertEqual(after["result"], prior["result"])
         manifest = self.complete(session_id)
@@ -204,6 +222,17 @@ class LiveSecurity(unittest.TestCase):
         self.assertEqual(len(history), 1)
         self.assertEqual(history[0]["status"], "BLOCKED")
         self.assertEqual(history[0]["mutations_recorded"], 0)
+        self.assertEqual(
+            {
+                "response_violations": [(v["policy_id"], v["effect_scope"])
+                                        for v in details.get("policy_violations", [])],
+                "manifest_violations": [(v["policy_id"], v["effect_scope"])
+                                        for v in manifest["policy_violations"]],
+                "read_only": history[0]["read_only"],
+            },
+            {"response_violations": [("POL-005", "TOOL")],
+             "manifest_violations": [("POL-005", "TOOL")], "read_only": None},
+        )
 
     def check_reviewer_guards(self, origin_cases):
         self.start(("POST", SESSIONS), ("POST", EXECUTE), ("POST", COMPLETE),
@@ -385,12 +414,17 @@ class LiveSecurity(unittest.TestCase):
         """)
         error = self.expect(self.finalize(COMMIT, session_id), 500, "DATABASE_FAILURE")
         details = error["error"]["details"]
-        self.assertIs(details["commit_durable"], True)
-        self.expect_commit_snapshot(session_id, completed, before, details["ledger_id"])
         after = self.production()
+        matching_receipts = [row for row in after[1] if row["session_id"] == session_id]
+        self.assertEqual(len(matching_receipts), 1)
+        ledger_id = matching_receipts[0]["ledger_id"]
+        self.expect_commit_snapshot(session_id, completed, before, ledger_id)
         self.sql_fault(self.meta, "DROP TRIGGER qa_fail_update; DROP TRIGGER qa_fail_insert;")
         self.expect(self.finalize(COMMIT, session_id), 409, "SESSION_ALREADY_FINALIZED")
-        result = self.manifest(session_id)["finalization_result"]
-        self.assertIs(result["recovered"], True)
-        self.assertEqual(result["ledger_id"], details["ledger_id"])
+        manifest = self.manifest(session_id)
+        result = manifest["finalization_result"] or {}
         self.assertEqual(self.production(), after)
+        self.assertEqual(
+            (details, manifest["execution_status"], result.get("recovered"), result.get("ledger_id")),
+            ({"commit_durable": True, "ledger_id": ledger_id}, "COMMITTED", True, ledger_id),
+        )
