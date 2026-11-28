@@ -188,6 +188,11 @@ export default function DashboardPage() {
             <SessionDetail
               session={detail}
               reviewerToken={reviewerToken}
+              onClearToken={() => setReviewerToken("")}
+              onRefresh={() => {
+                pollSessions();
+                loadDetail(detail.session_id);
+              }}
               onActionComplete={handleActionComplete}
             />
           )}

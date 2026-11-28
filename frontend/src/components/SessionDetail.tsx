@@ -26,6 +26,8 @@ import { commitSession, rollbackSession, AirlockApiError } from "@/lib/api-clien
 interface SessionDetailProps {
   session: SessionManifest;
   reviewerToken: string;
+  onClearToken: () => void;
+  onRefresh: () => void;
   onActionComplete: (updated: SessionManifest) => void;
 }
 
@@ -54,7 +56,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function SessionDetail({ session, reviewerToken, onActionComplete }: SessionDetailProps) {
+export function SessionDetail({ session, reviewerToken, onClearToken, onRefresh, onActionComplete }: SessionDetailProps) {
   const [tab, setTab] = useState<Tab>("overview");
   const [reviewer, setReviewer] = useState("");
   const [reason, setReason] = useState("");
@@ -108,7 +110,15 @@ export function SessionDetail({ session, reviewerToken, onActionComplete }: Sess
       onActionComplete(updated);
     } catch (e) {
       if (e instanceof AirlockApiError) {
-        setActionError(`${e.errorCode}: ${e.message}`);
+        if (e.errorCode === "UNAUTHORIZED_REVIEWER") {
+          onClearToken();
+        }
+        if (action === "commit" && e.errorCode === "DATABASE_FAILURE" && e.details.commit_durable === true) {
+          setActionSuccess("Commit is durable; refreshing the session record.");
+          onRefresh();
+        } else {
+          setActionError(`${e.errorCode}: ${e.message}`);
+        }
         if (
           e.errorCode === "COMMIT_CONFLICT" &&
           Array.isArray(e.details?.conflicts)
