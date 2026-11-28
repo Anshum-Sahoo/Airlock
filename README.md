@@ -3,7 +3,7 @@
 **The Security Gateway for Autonomous AI Agents**  
 Backend foundation: FastAPI + SQLite. Frozen contract package: **v1.2.1**.
 
-This is a starter workspace, not a completed Airlock implementation. It currently provides configuration, contract loading, production/metadata SQLite initialization, `GET /api/health`, and initial tests. Agent execution, reviewer workflows, policy evaluation, speculative session creation, commit/recovery orchestration, frontend, and Nemotron integration are intentionally not implemented yet.
+The backend MVP provides the contract-driven SQLite store, isolated agent sessions, allowlisted invoice tools, deterministic policy checks, and reviewer commit/rollback workflows. The Next.js dashboard and Nemotron agent runner are separate workstreams and are not included here.
 
 ## Project structure
 
@@ -75,7 +75,7 @@ python scripts/validate_contracts.py
 
 The API also runs the contract validator against `AIRLOCK_CONTRACTS_DIR` before database initialization on every startup. A failing or inconsistent contract package prevents the application from starting.
 
-The health endpoint initializes the production and metadata database files on first startup. The invoice table and durable commit-ledger table are created from the v1.2.1 contract definitions. No demo invoices are seeded yet, so the initial invoice count is `0`.
+Startup initializes the production and metadata databases, validates the contract package, and seeds the production invoice table from `invoice.schema.json` when it is empty. The demo baseline contains 500 rows: 420 overdue and 80 non-overdue. `/api/demo/reset` restores that baseline and clears sessions.
 
 ## Security notes
 
@@ -83,8 +83,8 @@ The health endpoint initializes the production and metadata database files on fi
 - Agent and reviewer tokens must be different.
 - NVIDIA credentials belong only in the agent process environment, never in `NEXT_PUBLIC_*` variables.
 - The agent process must not receive database paths or reviewer credentials.
-- CORS is not authentication. The full server-side Origin validation and role authorization rules in `contracts/API_CONTRACT.md` must be implemented before reviewer endpoints are exposed.
-- The current starter exposes only the health endpoint. Do not treat the project as production-ready.
+- CORS is not authentication. Commit, rollback, and reset enforce the configured Origin server-side and require the reviewer bearer token. Agent tools require the separate agent token.
+- This is a single-host local demo MVP; follow the limitations in `contracts/API_CONTRACT.md` before using it on shared or production infrastructure.
 
 ## Contract change policy
 
