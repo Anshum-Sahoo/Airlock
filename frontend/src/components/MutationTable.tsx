@@ -37,14 +37,14 @@ function InvoiceRow({ invoice, changed }: { invoice: Invoice; changed?: string[]
           const isChanged = changed?.includes(f);
           return (
             <tr key={f} className={isChanged ? "bg-[rgba(245,158,11,0.08)]" : ""}>
-              <td className="px-2 py-1 text-[#94A3B8] font-mono w-36 whitespace-nowrap border-b border-[#263247]">
+              <td className="px-2 py-1 text-[#52525B] font-mono w-36 whitespace-nowrap border-b border-[#E5E6E8]">
                 {f}
               </td>
-              <td className={`px-2 py-1 font-mono border-b border-[#263247] ${isChanged ? "text-[#F59E0B]" : "text-[#F8FAFC]"}`}>
+              <td className={`px-2 py-1 font-mono border-b border-[#E5E6E8] ${isChanged ? "text-[#E56828]" : "text-[#191A1C]"}`}>
                 {/* Plain text — invoice fields are never redacted (§3.7) */}
                 {formatValue(f, invoice[f], invoice.currency)}
                 {isChanged && (
-                  <span className="ml-2 text-[10px] text-[#F59E0B] uppercase tracking-widest">changed</span>
+                  <span className="ml-2 text-[10px] text-[#E56828] uppercase tracking-widest">changed</span>
                 )}
               </td>
             </tr>
@@ -58,29 +58,29 @@ function InvoiceRow({ invoice, changed }: { invoice: Invoice; changed?: string[]
 function MutationCard({ mutation }: { mutation: Mutation }) {
   const typeColors = {
     INSERT: "text-[#22C55E] border-[rgba(34,197,94,0.3)]",
-    UPDATE: "text-[#3B82F6] border-[rgba(59,130,246,0.3)]",
-    DELETE: "text-[#EF4444] border-[rgba(239,68,68,0.3)]",
+    UPDATE: "text-[#EF492F] border-[rgba(239,73,47,0.2)]",
+    DELETE: "text-[#EF492F] border-[rgba(239,73,47,0.3)]",
   };
   const policyColors = {
-    PENDING:          "text-[#94A3B8]",
-    ALLOW:            "text-[#3B82F6]",
-    REQUIRE_APPROVAL: "text-[#F59E0B]",
-    BLOCK:             "text-[#EF4444]",
+    PENDING:          "text-[#52525B]",
+    ALLOW:            "text-[#EF492F]",
+    REQUIRE_APPROVAL: "text-[#E56828]",
+    BLOCK:             "text-[#EF492F]",
   };
 
   return (
-    <div className="bg-[#111827] border border-[#263247] rounded-lg p-4 space-y-3">
+    <div className="bg-[#FFFFFF] border border-[#E5E6E8] rounded-lg p-4 space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <span className={`text-xs font-bold uppercase font-mono px-2 py-0.5 rounded border ${typeColors[mutation.mutation_type]}`}>
             {mutation.mutation_type}
           </span>
           {/* entity_id is a business key like INV-0042, not agent-generated text */}
-          <span className="text-sm font-mono text-[#F8FAFC]">{mutation.entity_id}</span>
-          <span className="text-xs text-[#94A3B8] font-mono">via {mutation.tool_name}</span>
+          <span className="text-sm font-mono text-[#191A1C]">{mutation.entity_id}</span>
+          <span className="text-xs text-[#52525B] font-mono">via {mutation.tool_name}</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-[#94A3B8]">Policy:</span>
+          <span className="text-[#52525B]">Policy:</span>
           <span className={`font-semibold ${policyColors[mutation.policy_decision]}`}>
             {mutation.policy_decision}
           </span>
@@ -90,8 +90,8 @@ function MutationCard({ mutation }: { mutation: Mutation }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {mutation.before && (
           <div>
-            <div className="text-[11px] uppercase tracking-widest text-[#94A3B8] mb-1">Before</div>
-            <div className="border border-[#263247] rounded overflow-hidden">
+            <div className="text-[11px] uppercase tracking-widest text-[#52525B] mb-1">Before</div>
+            <div className="border border-[#E5E6E8] rounded overflow-hidden">
               <InvoiceRow
                 invoice={mutation.before}
                 changed={mutation.mutation_type === "UPDATE" ? mutation.changed_fields : undefined}
@@ -101,8 +101,8 @@ function MutationCard({ mutation }: { mutation: Mutation }) {
         )}
         {mutation.after && (
           <div>
-            <div className="text-[11px] uppercase tracking-widest text-[#94A3B8] mb-1">After</div>
-            <div className="border border-[rgba(59,130,246,0.3)] rounded overflow-hidden">
+            <div className="text-[11px] uppercase tracking-widest text-[#52525B] mb-1">After</div>
+            <div className="border border-[rgba(239,73,47,0.2)] rounded overflow-hidden">
               <InvoiceRow
                 invoice={mutation.after}
                 changed={mutation.mutation_type === "UPDATE" ? mutation.changed_fields : undefined}
@@ -111,8 +111,8 @@ function MutationCard({ mutation }: { mutation: Mutation }) {
           </div>
         )}
         {mutation.mutation_type === "DELETE" && !mutation.after && (
-          <div className="flex items-center justify-center border border-[rgba(239,68,68,0.3)] rounded h-20">
-            <span className="text-[#EF4444] text-xs uppercase tracking-widest">Row will be deleted</span>
+          <div className="flex items-center justify-center border border-[rgba(239,73,47,0.3)] rounded h-20">
+            <span className="text-[#EF492F] text-xs uppercase tracking-widest">Row will be deleted</span>
           </div>
         )}
         {mutation.mutation_type === "INSERT" && !mutation.before && (
@@ -135,7 +135,7 @@ export function MutationTable({ mutations }: MutationTableProps) {
 
   if (all.length === 0) {
     return (
-      <div className="text-[#94A3B8] text-sm py-4 text-center">
+      <div className="text-[#52525B] text-sm py-4 text-center">
         No invoice mutations in this session.
       </div>
     );
@@ -151,11 +151,11 @@ export function MutationTable({ mutations }: MutationTableProps) {
         <MutationCard key={m.mutation_id} mutation={m} />
       ))}
       {truncated && (
-        <div className="text-center text-xs text-[#94A3B8] py-2">
+        <div className="text-center text-xs text-[#52525B] py-2">
           Showing {shown.length} of {all.length} mutations. {" "}
           <button
             type="button"
-            className="text-[#06B6D4] underline"
+            className="text-[#EF492F] underline"
             onClick={() => setShowAll((value) => !value)}
           >
             {showAll ? "Show first 50" : `Show all ${all.length}`}

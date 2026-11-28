@@ -11,9 +11,11 @@ import type { HealthResponse } from "@/lib/types";
 
 interface HealthBarProps {
   onError?: (msg: string) => void;
+  className?: string;
+  compact?: boolean;
 }
 
-export function HealthBar({ onError }: HealthBarProps) {
+export function HealthBar({ onError, className, compact = false }: HealthBarProps) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,33 +40,33 @@ export function HealthBar({ onError }: HealthBarProps) {
   const online = health !== null && error === null;
 
   return (
-    <div className="flex items-center gap-4 px-4 py-2 bg-[#0D1320] border-b border-[#263247] text-xs font-mono">
+    <div className={className ?? `flex items-center gap-4 ${compact ? "text-[10px]" : "border-b border-[#E5E6E8] bg-white px-4 py-2 text-xs"} font-mono`}>
       {/* Backend status indicator */}
       <span className="flex items-center gap-1.5">
         <span
-          className={`w-2 h-2 rounded-full ${online ? "bg-[#22C55E] shadow-[0_0_6px_rgba(34,197,94,0.6)]" : "bg-[#EF4444] shadow-[0_0_6px_rgba(239,68,68,0.6)]"}`}
+          className={`w-2 h-2 rounded-full ${online ? "bg-[#22C55E] shadow-[0_0_6px_rgba(34,197,94,0.6)]" : "bg-[#EF492F] shadow-[0_0_6px_rgba(239,73,47,0.6)]"}`}
         />
-        <span className={online ? "text-[#22C55E]" : error ? "text-[#EF4444]" : "text-[#F59E0B]"}>
+        <span className={online ? "text-[#22C55E]" : error ? "text-[#E34129]" : "text-[#E56828]"}>
           {online ? "Backend Online" : error ? "Backend Offline" : "Checking backend…"}
         </span>
       </span>
 
-      {health && (
+      {health && !compact && (
         <>
-          <span className="text-[#263247]">|</span>
-          <span className="text-[#94A3B8]">
-            Invoices: <span className="text-[#F8FAFC] tnum">{health.prod_invoice_count}</span>
+          <span className="text-[#E5E6E8]">|</span>
+          <span className="text-[#52525B]">
+            Invoices: <span className="text-[#191A1C] tnum">{health.prod_invoice_count}</span>
           </span>
-          <span className="text-[#263247]">|</span>
-          <span className="text-[#94A3B8]">
-            Active Sessions: <span className="text-[#F8FAFC] tnum">{health.active_sessions}</span>
+          <span className="text-[#E5E6E8]">|</span>
+          <span className="text-[#52525B]">
+            Active Sessions: <span className="text-[#191A1C] tnum">{health.active_sessions}</span>
           </span>
-          <span className="text-[#263247]">|</span>
-          <span className="text-[#94A3B8]">
+          <span className="text-[#E5E6E8]">|</span>
+          <span className="text-[#52525B]">
             DB: {health.prod_db_connected && health.meta_db_connected ? (
               <span className="text-[#22C55E]">Connected</span>
             ) : (
-              <span className="text-[#EF4444]">Degraded</span>
+              <span className="text-[#EF492F]">Degraded</span>
             )}
           </span>
         </>
@@ -72,14 +74,14 @@ export function HealthBar({ onError }: HealthBarProps) {
 
       {error && (
         <>
-          <span className="text-[#263247]">|</span>
-          <span className="text-[#EF4444] truncate max-w-xs" title={error}>{error}</span>
+          <span className="text-[#E5E6E8]">|</span>
+          <span className="text-[#EF492F] truncate max-w-xs" title={error}>{error}</span>
         </>
       )}
 
-      <span className="ml-auto text-[#263247]">
+      <span className="ml-auto text-[#E5E6E8]">
         {MOCK_MODE && (
-          <span className="text-[#F59E0B] border border-[rgba(245,158,11,0.3)] px-2 py-0.5 rounded text-[10px] uppercase tracking-widest">
+          <span className="text-[#E56828] border border-[rgba(245,158,11,0.3)] px-2 py-0.5 rounded text-[10px] uppercase tracking-widest">
             Mock Mode
           </span>
         )}

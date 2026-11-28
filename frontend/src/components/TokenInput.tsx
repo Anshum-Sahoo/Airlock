@@ -34,7 +34,7 @@ export function TokenInput({ onTokenSet, hasToken }: TokenInputProps) {
         <span className="text-[#22C55E] font-semibold uppercase tracking-widest">Token set</span>
         <button
           onClick={() => onTokenSet("")}
-          className="ml-2 text-[#94A3B8] hover:text-[#EF4444] transition-colors text-xs"
+          className="ml-2 text-[#52525B] hover:text-[#EF492F] transition-colors text-xs"
           title="Clear reviewer token"
         >
           ✕ Clear
@@ -53,9 +53,9 @@ export function TokenInput({ onTokenSet, hasToken }: TokenInputProps) {
           placeholder="Reviewer token…"
           autoComplete="off"
           className="
-            w-52 px-3 py-1.5 bg-[#0D1320] border border-[#263247] rounded
-            text-xs text-[#F8FAFC] placeholder-[#94A3B8] font-mono
-            focus:outline-none focus:border-[#3B82F6] focus:shadow-[0_0_0_1px_#3B82F6]
+            w-52 px-3 py-1.5 bg-[#F8F9FA] border border-[#E5E6E8] rounded
+            text-xs text-[#191A1C] placeholder-[#52525B] font-mono
+            focus:outline-none focus:border-[#EF492F] focus:shadow-[0_0_0_1px_#EF492F]
             transition-all
           "
           aria-label="Reviewer bearer token"
@@ -63,7 +63,7 @@ export function TokenInput({ onTokenSet, hasToken }: TokenInputProps) {
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#F8FAFC] text-xs"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#52525B] hover:text-[#191A1C] text-xs"
           tabIndex={-1}
           aria-label={visible ? "Hide token" : "Show token"}
         >
@@ -75,15 +75,15 @@ export function TokenInput({ onTokenSet, hasToken }: TokenInputProps) {
         disabled={!draft.trim()}
         className="
           px-3 py-1.5 text-xs font-semibold rounded
-          bg-[#3B82F6] text-white
-          hover:bg-[#2563EB] hover:shadow-[0_0_12px_rgba(59,130,246,0.35)]
+          bg-[#EF492F] text-white
+          hover:bg-[#EF492F] hover:shadow-[0_0_12px_rgba(239,73,47,0.22)]
           disabled:opacity-40 disabled:cursor-not-allowed
           transition-all
         "
       >
         Set Token
       </button>
-      <span className="text-[10px] text-[#94A3B8] ml-1">
+      <span className="text-[10px] text-[#52525B] ml-1">
         Stored in page memory only. Lost on reload.
       </span>
     </form>

@@ -1,36 +1,35 @@
 import type { Config } from "tailwindcss";
 
-// Design system: Airlock Cybernetic Defense (from Stitch DESIGN.md)
+// Warm, light reviewer workspace adapted from the supplied dashboard reference.
 const config: Config = {
-  darkMode: "class",
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
         // Surface layers
-        "bg-base":     "#090D16",
-        "bg-nav":      "#0D1320",
-        "bg-card":     "#111827",
-        "bg-elevated": "#172033",
-        "border-base": "#263247",
+        "bg-base":     "#F4F5F7",
+        "bg-nav":      "#FFFFFF",
+        "bg-card":     "#FFFFFF",
+        "bg-elevated": "#FFF1ED",
+        "border-base": "#E5E6E8",
         // Semantic accents
-        "accent-blue": "#3B82F6",
-        "accent-cyan": "#06B6D4",
+        "accent-blue":  "#EF492F",
+        "accent-cyan":  "#E56828",
         "ok":          "#22C55E",
-        "warn":        "#F59E0B",
-        "danger":      "#EF4444",
-        "muted":       "#94A3B8",
-        "text-base":   "#F8FAFC",
-        "text-dim":    "#CBD5E1",
+        "warn":        "#E56828",
+        "danger":      "#EF492F",
+        "muted":       "#52525B",
+        "text-base":   "#191A1C",
+        "text-dim":    "#52525B",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui"],
         mono: ["JetBrains Mono", "ui-monospace", "monospace"],
       },
       borderRadius: {
-        DEFAULT: "4px",
-        md: "4px",
-        lg: "8px",
+        DEFAULT: "6px",
+        md: "8px",
+        lg: "12px",
       },
     },
   },
