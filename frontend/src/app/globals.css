@@ -31,3 +31,15 @@
   .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
   .tnum { font-feature-settings: "tnum" 1; }
 }
+
+.run-panel { padding: 1.25rem; background: white; border: 1px solid #e5e6e8; border-radius: .75rem; }
+.run-panel h2, .row-top strong { font-weight: 600; }
+.run-panel label { display: grid; gap: .25rem; }
+.run-panel input, .run-panel select { background: white; color: #191a1c; border: 1px solid #bbb; border-radius: .4rem; padding: .5rem; }
+.worker-status, .row-meta { font-size: .8rem; color: #52525b; }
+.live-trace { margin-top: 1rem; border-top: 1px solid #ddd; padding-top: .75rem; }
+.trace-steps { list-style: decimal inside; overflow-wrap: anywhere; }
+.session-row { width: 100%; display: grid; gap: .4rem; text-align: left; padding: 1rem; border-top: 1px solid #eee; }
+.session-row:hover, .session-row[aria-pressed=true] { background: #fff3e8; }
+.row-top, .row-meta { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.row-top { justify-content: space-between; }
