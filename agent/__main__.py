@@ -1,4 +1,4 @@
-"""Run a deterministic Airlock demo or an optional Nemotron invoice lookup."""
+"""Run the Airlock demo with Nemotron or the deterministic runner."""
 
 import argparse
 import json
@@ -8,6 +8,8 @@ import sys
 import httpx
 
 from .client import API, TOOLS, AgentError, Airlock, ApiError, validate
+from .model_demo import WEBHOOK, model_sessions
+from .nemotron import review
 
 AGENT_NAME = "airlock-python-agent"
 ISOLATED_VARS = ("AIRLOCK_PROD_DB_PATH", "AIRLOCK_META_DB_PATH",
@@ -38,11 +40,7 @@ def delete_demo(api):
 def webhook_demo(api):
     session_id = api.create(AGENT_NAME, "Demonstrate webhook secret policy")["session_id"]
     try:
-        api.execute(session_id, "stage_webhook", {
-            "url": "https://hooks.airlock.internal/collect",
-            "event_type": "demo.secret_check",
-            "payload": {"token": "sk_live_DEMO_REDACTED"},
-        })
+        api.execute(session_id, "stage_webhook", WEBHOOK)
     except ApiError as exc:
         if exc.code != "POLICY_BLOCK":
             raise
@@ -106,7 +104,13 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("delete-demo")
     commands.add_parser("webhook-demo")
-    commands.add_parser("demo", help="Run both scenarios in separate sessions.")
+    custom = commands.add_parser("new-session", help="Inspect an invoice and stage deletion if overdue.")
+    custom.add_argument("name")
+    custom.add_argument("invoice_id")
+    commands.add_parser("nemotron-review", help="Ask Nemotron to select an overdue invoice and stage a follow-up note.")
+    demo = commands.add_parser("demo", help="Run both scenarios in separate sessions.")
+    demo.add_argument("--mode", choices=("auto", "nemotron", "deterministic"), default="auto",
+                      help="Auto uses Nemotron when NVIDIA_API_KEY is set.")
     lookup = commands.add_parser("nemotron-lookup")
     lookup.add_argument("prompt")
     args = parser.parse_args(argv)
@@ -123,6 +127,21 @@ def main(argv=None):
             raise AgentError("AIRLOCK_API_BASE_URL must be an HTTP(S) origin.")
         with httpx.Client(base_url=url, timeout=30, trust_env=False) as client:
             api = Airlock(client, token)
+            if args.command == "new-session":
+                for manifest in model_sessions(api, os.environ, (args.name, args.invoice_id)):
+                    print(json.dumps({**report(manifest), "agent_summary": manifest["agent_summary"]}, indent=2))
+                return 0
+            if args.command == "demo" and (args.mode == "nemotron" or (
+                    args.mode == "auto" and os.environ.get("NVIDIA_API_KEY"))):
+                for manifest in model_sessions(api, os.environ):
+                    result = {**report(manifest), "agent_summary": manifest["agent_summary"],
+                              "policy_ids": [v["policy_id"] for v in manifest["policy_violations"]]}
+                    if manifest["gate_decision"] == "BLOCK":
+                        result["tool_error"] = "POLICY_BLOCK"
+                    print(json.dumps(result, indent=2), flush=True)
+                return 0
+            if args.command == "nemotron-review":
+                print(json.dumps(report(review(api, os.environ)), indent=2))
             if args.command in ("demo", "delete-demo"):
                 print(json.dumps(delete_demo(api), indent=2))
             if args.command in ("demo", "webhook-demo"):
