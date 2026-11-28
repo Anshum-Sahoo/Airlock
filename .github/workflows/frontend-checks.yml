@@ -1,0 +1,70 @@
+name: Frontend checks
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - "scripts/validate_contracts.py"
+      - "contracts/**"
+      - ".github/workflows/frontend-checks.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "frontend/**"
+      - "scripts/validate_contracts.py"
+      - "contracts/**"
+      - ".github/workflows/frontend-checks.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: frontend-and-contract-checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect frontend package
+        id: frontend
+        run: echo "present=$(test -f frontend/package.json && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@v4
+        if: steps.frontend.outputs.present == 'true'
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        if: steps.frontend.outputs.present == 'true'
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        if: steps.frontend.outputs.present == 'true'
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        if: steps.frontend.outputs.present == 'true'
+        working-directory: frontend
+        run: pnpm run typecheck
+      - name: Lint
+        if: steps.frontend.outputs.present == 'true'
+        working-directory: frontend
+        run: pnpm run lint
+      - name: Test
+        if: steps.frontend.outputs.present == 'true'
+        working-directory: frontend
+        run: pnpm test
+      - name: Build
+        if: steps.frontend.outputs.present == 'true'
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_MOCK_MODE: "false"
+          NEXT_PUBLIC_AIRLOCK_API_URL: http://127.0.0.1:8000
+        run: pnpm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate contracts
+        run: python scripts/validate_contracts.py --contracts-dir contracts
