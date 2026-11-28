@@ -13,6 +13,7 @@ A missing runtime dependency or a required route missing from OpenAPI produces a
 
 | Live coverage | Required backend behavior |
 | --- | --- |
+| Session list envelope and required summary fields match the frozen JSON Schema | Session creation and `GET /api/sessions` |
 | 500 rows, 420 overdue and 80 non-overdue, and version 1 | `POST /api/demo/reset` and the synthetic seeder |
 | 400, 401, and 420 deletion boundaries, with no implicit production writes | `POST /api/sessions`, `POST /api/tools/execute`, and `POST /api/sessions/{session_id}/complete` |
 | Unknown tool blocked and audited at tool scope, read-only inspection still works, session can complete with ALLOW | Session creation, execution, and completion |
@@ -22,10 +23,9 @@ A missing runtime dependency or a required route missing from OpenAPI produces a
 | Safe commit updates two invoices and writes one receipt; receipt-insert failure rolls back writes | `POST /api/sessions/{session_id}/commit`, ledger insertion, and the SQLite transaction |
 | Conflicts leave the nonconflicting row and ledger unchanged; duplicate finalization and retry recovery do not replay | Commit, rollback, session detail, and durable-ledger reconciliation |
 
-The starter documents all live scenarios above as **not implemented/not testable**. The current workflow runs the starter suite under `backend/tests/`. Run the security suite with the explicit discovery command until CI placement is agreed with the integration lead.
+Run the security suite with the explicit discovery command. The existing backend workflow discovers tests under `backend/tests/`.
 
 ## Follow-up with the integration lead
 
-- Which integration fixture should cover the seeder if it lands before the reset route?
 - Is there a supported crash hook for restart reconciliation? The suite exercises the required commit-retry recovery path with a temporary SQLite fault. Startup recovery, process interruption before SQLite commit, and simultaneous finalization are still uncovered.
 - Which log capture and egress observation should be used once the backend logging and transport are available? The suite inspects the response and manifests for redaction and observes in-process Python DNS/TCP calls. Persisted metadata/log redaction and subprocess egress are still uncovered.
