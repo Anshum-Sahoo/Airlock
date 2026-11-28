@@ -8,13 +8,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import httpx
 
 from .__main__ import ISOLATED_VARS
-from .client import AgentError, Airlock
-from .model_demo import named_session, run_session
+from .client import ApiError, Airlock
+from .model_demo import WEBHOOK, named_session, run_session
 
 ORIGINS = {"http://localhost:3000", "http://127.0.0.1:3000"}
+local_demo = os.environ.get("AIRLOCK_WORKER_MODE") == "deterministic"
+if local_demo:
+    ORIGINS.add("http://127.0.0.1:13008")
 busy = threading.Lock()
 state_lock = threading.Lock()
-state = {"session_id": None, "status": "Ready", "results": []}
+state = {"mode": "deterministic" if local_demo else "nemotron", "session_id": None, "status": "Ready", "results": []}
 
 
 class Results(list):
@@ -28,21 +31,54 @@ def gateway():
     return httpx.Client(base_url=os.environ["AIRLOCK_API_BASE_URL"], timeout=30, trust_env=False)
 
 
+def deterministic_run(api, session_id, scenario, invoice_id):
+    trace = Results()
+    if scenario == "webhook":
+        try:
+            api.execute(session_id, "stage_webhook", WEBHOOK)
+        except ApiError as error:
+            if error.code != "POLICY_BLOCK":
+                raise
+            trace.append("stage_webhook: blocked by policy.")
+        else:
+            raise RuntimeError("Expected the synthetic webhook to be blocked.")
+    elif scenario == "deletion":
+        result = api.execute(session_id, "bulk_delete_invoices", {"status": "OVERDUE"})
+        trace.append(f"bulk_delete_invoices: staged {result['mutations_recorded']} deletions.")
+    else:
+        row = api.execute(session_id, "get_invoice", {"invoice_id": invoice_id})["result"]["invoice"]
+        trace.append(f"get_invoice: {invoice_id} is {row['status']}, due {row['due_date']}.")
+        if scenario == "single_delete" and row["status"] == "OVERDUE":
+            api.execute(session_id, "delete_invoice", {"invoice_id": invoice_id})
+            trace.append(f"delete_invoice: staged deletion of {invoice_id}.")
+    return api.complete(session_id, " ".join(trace))
+
+
+def model_run(session, scenario, invoice_id, title):
+    key = os.environ["NVIDIA_API_KEY"]
+    token = os.environ["AIRLOCK_AGENT_TOKEN"]
+    with gateway() as http, httpx.Client(
+        base_url=os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+        headers={"Authorization": f"Bearer {key}"}, timeout=90, trust_env=False,
+    ) as model_http:
+        if scenario in ("inspect", "single_delete"):
+            manifest = named_session(Airlock(http, token), model_http, os.environ["NVIDIA_MODEL"],
+                                     title, invoice_id, inspect_only=scenario == "inspect",
+                                     session=session, receipts=Results())
+        else:
+            manifest = run_session(Airlock(http, token), model_http, os.environ["NVIDIA_MODEL"],
+                               scenario, [key, token], session, Results())
+    return manifest
+
+
 def execute(session, scenario, invoice_id, title):
     try:
-        key = os.environ["NVIDIA_API_KEY"]
-        token = os.environ["AIRLOCK_AGENT_TOKEN"]
-        with gateway() as http, httpx.Client(
-            base_url=os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
-            headers={"Authorization": f"Bearer {key}"}, timeout=90, trust_env=False,
-        ) as model_http:
-            if scenario in ("inspect", "single_delete"):
-                manifest = named_session(Airlock(http, token), model_http, os.environ["NVIDIA_MODEL"],
-                                         title, invoice_id, inspect_only=scenario == "inspect",
-                                         session=session, receipts=Results())
-            else:
-                manifest = run_session(Airlock(http, token), model_http, os.environ["NVIDIA_MODEL"],
-                                   scenario, [key, token], session, Results())
+        if local_demo:
+            with gateway() as http:
+                manifest = deterministic_run(Airlock(http, os.environ["AIRLOCK_AGENT_TOKEN"]),
+                                             session["session_id"], scenario, invoice_id)
+        else:
+            manifest = model_run(session, scenario, invoice_id, title)
         status = "Completed · " + manifest["gate_decision"]
     except Exception:
         status = "Stopped. Inspect the session history and agent summary."
@@ -94,7 +130,7 @@ class Handler(BaseHTTPRequestHandler):
             if scenario in ("inspect", "single_delete") and not re.fullmatch(r"INV-[0-9]{4}", invoice_id or ""):
                 raise ValueError
             if (scenario not in ("deletion", "webhook", "inspect", "single_delete") or not 1 <= len(title) <= 70
-                    or any(os.environ[k] in title for k in ("NVIDIA_API_KEY", "AIRLOCK_AGENT_TOKEN"))):
+                    or any(os.environ.get(k) and os.environ[k] in title for k in ("NVIDIA_API_KEY", "AIRLOCK_AGENT_TOKEN"))):
                 raise ValueError
         except (ValueError, TypeError, AttributeError, KeyError):
             return self.reply(400)
@@ -108,7 +144,7 @@ class Handler(BaseHTTPRequestHandler):
                     task = f"Inspect the status and due date of {invoice_id}"
                 elif scenario == "single_delete":
                     task = f"Stage deletion of {invoice_id} only if overdue"
-                session = api.create("Nemotron: " + title, task)
+                session = api.create(("Demo: " if local_demo else "Nemotron: ") + title, task)
             sid = session["session_id"]
             with state_lock:
                 state.update(session_id=sid, status="Running", results=[])
@@ -122,7 +158,10 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     if any(name in os.environ for name in ISOLATED_VARS):
         raise SystemExit("Start the worker in the isolated agent environment.")
-    if not all(os.environ.get(k) for k in ("AIRLOCK_AGENT_TOKEN", "AIRLOCK_API_BASE_URL", "NVIDIA_API_KEY", "NVIDIA_MODEL")):
+    required = ["AIRLOCK_AGENT_TOKEN", "AIRLOCK_API_BASE_URL"]
+    if not local_demo:
+        required.extend(["NVIDIA_API_KEY", "NVIDIA_MODEL"])
+    if not all(os.environ.get(k) for k in required):
         raise SystemExit("Set the agent and NVIDIA configuration first.")
     url = httpx.URL(os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"))
     if url.scheme != "https" or not url.host or url.userinfo or url.query or url.fragment:

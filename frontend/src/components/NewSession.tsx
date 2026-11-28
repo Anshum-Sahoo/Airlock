@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 const worker = "http://127.0.0.1:8765/session";
-type Run = { session_id: string | null; status: string; results: string[] };
+type Run = { mode?: string; session_id: string | null; status: string; results: string[] };
 
 export function NewSession({ onCreated }: { onCreated: (id: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -46,7 +46,7 @@ export function NewSession({ onCreated }: { onCreated: (id: string) => void }) {
         headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, scenario, invoice_id: single ? invoice : undefined }) });
       if (!response.ok) throw new Error(response.status === 409 ? "A session is already running." : "Check that the Airlock backend is running, then try again.");
       const { session_id } = await response.json();
-      setRun({ session_id, status: "Running", results: [] });
+      setRun({ mode: run?.mode, session_id, status: "Running", results: [] });
       onCreated(session_id);
       setOpen(false);
       trigger.current?.focus();
@@ -56,28 +56,43 @@ export function NewSession({ onCreated }: { onCreated: (id: string) => void }) {
   }
   return <section className="run-panel">
     <div className="flex items-center justify-between gap-3">
-      <div><h2>Agent control</h2><span role="status" className="worker-status">{connected === null ? "Connecting to worker..." : connected ? "Nemotron worker online" : "Worker offline · start Run-NemotronDemo.ps1 -Worker"}</span></div>
-      <button ref={trigger} disabled={pending} aria-expanded={open} className={open ? "cancel-session" : "rounded bg-blue-600 px-3 py-2 text-white"} onClick={() => { setError(""); setOpen(!open); }}>
+      <div className="flex min-w-0 items-center gap-3">
+        <span aria-hidden="true" className="agent-mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="m7 10 3 2-3 2m6 0h4"/></svg></span>
+        <div><h2>Agent control</h2><span role="status" className="worker-status" data-online={connected === true}>{connected === null ? "Connecting to worker..." : connected ? (run?.mode === "deterministic" ? "Local demo worker online" : "Nemotron worker online") : "Worker offline · start Run-NemotronDemo.ps1 -Worker"}</span></div></div>
+      <button ref={trigger} disabled={pending} aria-expanded={open} className={open ? "cancel-session" : "agent-primary"} onClick={() => { setError(""); setOpen(!open); }}>
         {open ? "Cancel" : "New session"}</button>
     </div>
-    {open && <form className="mt-3 grid gap-3" onSubmit={start}>
-      <label>Session name <input ref={nameField} className="rounded bg-slate-800 p-2" required maxLength={70}
+    {open && <form className="agent-form" onSubmit={start}>
+      <label>Session name <input ref={nameField}  required maxLength={70}
         value={name} onChange={e => setName(e.target.value)} /></label>
-      <label>Task <select className="rounded bg-slate-800 p-2" value={scenario} onChange={e => setScenario(e.target.value)}>
+      <label>Task <select  value={scenario} onChange={e => setScenario(e.target.value)}>
         <option value="deletion">Inspect and stage overdue invoice deletions</option>
         <option value="webhook">Attempt a synthetic secret webhook</option>
         <option value="inspect">Inspect invoice status and due date</option>
         <option value="single_delete">Stage one deletion if overdue</option>
       </select></label>
       {single && <label>Invoice ID<input required pattern="INV-[0-9]{4}" title="Use an ID such as INV-0042" value={invoice} onChange={e => setInvoice(e.target.value.toUpperCase())} /></label>}
-      <button className="justify-self-start rounded bg-blue-600 px-3 py-2 text-white disabled:opacity-50"
+      <button className="agent-primary justify-self-start"
         disabled={!connected || pending || run?.status === "Running" || !name.trim()}>{pending ? "Starting session..." : "Run agent"}</button>
       {error && <p role="alert">{error}</p>}
     </form>}
     {run?.session_id && <div className="live-trace">
-      <button className="underline" onClick={() => onCreated(run.session_id!)}>View latest run</button>
-      <span> · {run.status}</span>
-      <ol aria-label="Live tool results" aria-live="polite" aria-relevant="additions" className="trace-steps">{run.results.map((line, i) => <li key={i}>{line}</li>)}</ol>
+      <div className="run-summary">
+        <h3>Latest run</h3>
+        <p className="run-state">{run.status.split(" · ")[0]}</p>
+        {run.status.includes(" · ") && <span className="run-status" data-gate={run.status.split(" · ")[1]}>{run.status.split(" · ")[1].replace(/_/g, " ")}</span>}
+        <button className="run-link" onClick={() => onCreated(run.session_id!)}>View run</button>
+      </div>
+      <div className="run-activity">
+        <h3>Tool activity</h3>
+        <ol aria-label="Live tool results" aria-live="polite" aria-relevant="additions" className="trace-steps">
+          {run.results.map((line, i) => {
+            const tool = /^([a-z]+_[a-z_]+)[: ]+(.+)$/.exec(line);
+            return <li key={i}>{tool ? <><code>{tool[1]}</code><span>{tool[2]}</span></> : line}</li>;
+          })}
+        </ol>
+        {!run.results.length && <p className="text-sm text-zinc-600">No tool results yet.</p>}
+      </div>
     </div>}
   </section>;
 }
