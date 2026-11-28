@@ -77,12 +77,22 @@ export function NewSession({ onCreated }: { onCreated: (id: string) => void }) {
       {error && <p role="alert">{error}</p>}
     </form>}
     {run?.session_id && <div className="live-trace">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold">Latest run</h3>
-        <span className="run-status" data-gate={run.status.split(" · ")[1]}>{run.status.replace(/_/g, " ")}</span>
-        <button className="run-link" onClick={() => onCreated(run.session_id!)}>View run <span aria-hidden="true">↗</span></button>
+      <div className="run-summary">
+        <h3>Latest run</h3>
+        <p className="run-state">{run.status.split(" · ")[0]}</p>
+        {run.status.includes(" · ") && <span className="run-status" data-gate={run.status.split(" · ")[1]}>{run.status.split(" · ")[1].replace(/_/g, " ")}</span>}
+        <button className="run-link" onClick={() => onCreated(run.session_id!)}>View run</button>
       </div>
-      <ol aria-label="Live tool results" aria-live="polite" aria-relevant="additions" className="trace-steps">{run.results.map((line, i) => <li key={i}><code>{line.split(/[: ]/, 1)[0]}</code><span>{line.replace(/^[^: ]+:?\s*/, "")}</span></li>)}</ol>
+      <div className="run-activity">
+        <h3>Tool activity</h3>
+        <ol aria-label="Live tool results" aria-live="polite" aria-relevant="additions" className="trace-steps">
+          {run.results.map((line, i) => {
+            const tool = /^([a-z]+_[a-z_]+)[: ]+(.+)$/.exec(line);
+            return <li key={i}>{tool ? <><code>{tool[1]}</code><span>{tool[2]}</span></> : line}</li>;
+          })}
+        </ol>
+        {!run.results.length && <p className="text-sm text-zinc-600">No tool results yet.</p>}
+      </div>
     </div>}
   </section>;
 }
