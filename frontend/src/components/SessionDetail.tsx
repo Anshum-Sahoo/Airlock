@@ -21,6 +21,8 @@ import {
 } from "./StatusBadge";
 import { MutationTable } from "./MutationTable";
 import { ViolationList } from "./ViolationList";
+import { ToolTimeline } from "./ToolTimeline";
+import { WebhookList } from "./WebhookList";
 import { commitSession, rollbackSession, AirlockApiError } from "@/lib/api-client";
 
 interface SessionDetailProps {
@@ -31,7 +33,7 @@ interface SessionDetailProps {
   onActionComplete: (updated: SessionManifest) => void;
 }
 
-type Tab = "overview" | "mutations" | "violations" | "summary";
+type Tab = "overview" | "activity" | "mutations" | "violations" | "webhooks" | "summary";
 
 function fmt(ts: string | null): string {
   if (!ts) return "—";
@@ -81,10 +83,16 @@ export function SessionDetail({ session, reviewerToken, onClearToken, onRefresh,
     session.gate_decision !== "BLOCK" &&
     session.human_review_status === "PENDING";
   const canRollback =
-    !isFinalized && session.human_review_status === "PENDING";
+    (session.execution_status === "ACTIVE" || session.execution_status === "COMPLETED") &&
+    session.human_review_status === "PENDING";
   const noToken = !reviewerToken;
 
   async function handleAction(action: "commit" | "rollback") {
+    if (
+      action === "commit" &&
+      session.gate_decision === "REQUIRE_APPROVAL" &&
+      !window.confirm("Policy requires explicit approval. Commit these reviewed mutations to production?")
+    ) return;
     if (!reviewer.trim()) {
       setActionError("Reviewer name is required (audit label).");
       return;
@@ -135,6 +143,7 @@ export function SessionDetail({ session, reviewerToken, onClearToken, onRefresh,
 
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: "overview", label: "Overview" },
+    { key: "activity", label: "Tool activity", count: session.tool_execution_history.length },
     {
       key: "mutations",
       label: "Mutations",
@@ -145,6 +154,7 @@ export function SessionDetail({ session, reviewerToken, onClearToken, onRefresh,
       label: "Violations",
       count: session.policy_violations.length,
     },
+    { key: "webhooks", label: "Webhooks", count: session.staged_webhooks.length },
     { key: "summary", label: "Agent Summary" },
   ];
 
@@ -304,12 +314,27 @@ export function SessionDetail({ session, reviewerToken, onClearToken, onRefresh,
           </div>
         )}
 
+        {tab === "activity" && (
+          <ToolTimeline executions={session.tool_execution_history} />
+        )}
+
         {tab === "mutations" && (
-          <MutationTable mutations={session.mutations} />
+          <div className="space-y-3">
+            {session.mutation_counts.total > 0 && (
+              <div className="rounded border border-[#263247] bg-[#0D1320] px-3 py-2 text-sm text-[#CBD5E1]">
+                {session.risk_summary.summary_text} <span className="text-[#94A3B8]">({session.risk_summary.affected_percentage.toFixed(1)}% of baseline)</span>
+              </div>
+            )}
+            <MutationTable mutations={session.mutations} />
+          </div>
         )}
 
         {tab === "violations" && (
           <ViolationList violations={session.policy_violations} />
+        )}
+
+        {tab === "webhooks" && (
+          <WebhookList webhooks={session.staged_webhooks} />
         )}
 
         {tab === "summary" && (

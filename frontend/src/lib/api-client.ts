@@ -4,7 +4,8 @@
  * Security notes (from contracts/API_CONTRACT.md section 3.3):
  * - The reviewer token is passed in at call time from page-memory state only.
  * - It is NEVER stored in localStorage, sessionStorage, cookies, URLs, or env.
- * - NEXT_PUBLIC_API_BASE_URL exposes only the backend base URL — no secrets.
+ * - NEXT_PUBLIC_AIRLOCK_API_URL exposes only the backend base URL — no secrets.
+ * - NEXT_PUBLIC_POLL_INTERVAL_MS is the contract's public refresh interval.
  * - NEXT_PUBLIC_MOCK_MODE=true enables isolated mock mode for UI preview.
  * - No NVIDIA credentials or other backend secrets appear here.
  */
@@ -22,6 +23,7 @@ import {
   getMockHealth,
   getMockSessionList,
   getMockSessionDetail,
+  finalizeMockSession,
 } from "./mock-data";
 
 // ---------------------------------------------------------------------------
@@ -30,8 +32,14 @@ import {
 
 /** Backend base URL. Must be a loopback or known host — no secrets. */
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
+  process.env.NEXT_PUBLIC_AIRLOCK_API_URL?.replace(/\/$/, "") ??
   "http://127.0.0.1:8000";
+
+const configuredPollInterval = Number(process.env.NEXT_PUBLIC_POLL_INTERVAL_MS);
+export const POLL_INTERVAL_MS =
+  Number.isFinite(configuredPollInterval) && configuredPollInterval > 0
+    ? configuredPollInterval
+    : 2000;
 
 /** When true, all reads return mock data and mutating calls are simulated. */
 const MOCK_MODE = process.env.NEXT_PUBLIC_MOCK_MODE === "true";
@@ -63,7 +71,7 @@ async function apiFetch<T>(
     res = await fetch(url, {
       ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...(options.body !== undefined ? { "Content-Type": "application/json" } : {}),
         ...(options.headers ?? {}),
       },
     });
@@ -144,22 +152,18 @@ export async function commitSession(
     if (manifest.execution_status !== "COMPLETED") {
       throw new AirlockApiError(409, "INVALID_SESSION_STATE", "Session must be COMPLETED to commit");
     }
-    return {
-      ...manifest,
-      execution_status: "COMMITTED",
-      human_review_status: "APPROVED",
-      finalized_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-    };
+    const updated = finalizeMockSession(sessionId, "COMMIT", body.reviewer, body.reason ?? null);
+    if (!updated) {
+      throw new AirlockApiError(404, "SESSION_NOT_FOUND", `Session ${sessionId} not found`);
+    }
+    return updated;
   }
   return apiFetch<CommitResponse>(
     `/api/sessions/${encodeURIComponent(sessionId)}/commit`,
     {
       method: "POST",
-      headers: {
-        ...reviewerHeaders(reviewerToken),
-        // The browser sets Origin automatically; non-browser clients must add it
-        Origin: window.location.origin,
-      },
+      // The browser supplies the page Origin automatically; the backend checks it.
+      headers: reviewerHeaders(reviewerToken),
       body: JSON.stringify(body),
     }
   );
@@ -179,21 +183,18 @@ export async function rollbackSession(
     if (manifest.execution_status === "COMMITTED" || manifest.execution_status === "ROLLED_BACK") {
       throw new AirlockApiError(409, "SESSION_ALREADY_FINALIZED", "Session is already finalized");
     }
-    return {
-      ...manifest,
-      execution_status: "ROLLED_BACK",
-      human_review_status: "REJECTED",
-      finalized_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-    };
+    const updated = finalizeMockSession(sessionId, "ROLLBACK", body.reviewer, body.reason ?? null);
+    if (!updated) {
+      throw new AirlockApiError(404, "SESSION_NOT_FOUND", `Session ${sessionId} not found`);
+    }
+    return updated;
   }
   return apiFetch<RollbackResponse>(
     `/api/sessions/${encodeURIComponent(sessionId)}/rollback`,
     {
       method: "POST",
-      headers: {
-        ...reviewerHeaders(reviewerToken),
-        Origin: window.location.origin,
-      },
+      // The browser supplies the page Origin automatically; the backend checks it.
+      headers: reviewerHeaders(reviewerToken),
       body: JSON.stringify(body),
     }
   );

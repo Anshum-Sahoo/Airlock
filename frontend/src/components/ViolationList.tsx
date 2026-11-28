@@ -35,9 +35,9 @@ export function ViolationList({ violations }: ViolationListProps) {
 
   return (
     <div className="space-y-2">
-      {violations.map((v) => (
+        {violations.map((v, index) => (
         <div
-          key={v.violation_id}
+          key={`${v.policy_id}-${v.stage}-${v.operation_id ?? "session"}-${index}`}
           className="bg-[#111827] border border-[#263247] rounded-lg p-3 space-y-1"
         >
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -56,13 +56,18 @@ export function ViolationList({ violations }: ViolationListProps) {
               <span className="text-[#94A3B8]">
                 Scope: <span className="text-[#CBD5E1]">{v.effect_scope}</span>
               </span>
+              <span className="text-[#94A3B8]">
+                Stage: <span className="text-[#CBD5E1]">{v.stage}</span>
+              </span>
             </div>
           </div>
           {/* explanation is backend-generated and redacted — plain text */}
           <p className="text-xs text-[#CBD5E1]">{v.explanation}</p>
-          {v.entity_id && (
-            <p className="text-xs text-[#94A3B8] font-mono">Entity: {v.entity_id}</p>
-          )}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#94A3B8] font-mono">
+            <span>Affected records: {v.affected_record_count ?? "—"}</span>
+            <span>Operation: {v.operation_id ?? "session completion"}</span>
+            <span>{v.timestamp}</span>
+          </div>
         </div>
       ))}
     </div>

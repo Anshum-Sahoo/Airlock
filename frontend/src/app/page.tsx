@@ -12,12 +12,12 @@
 
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { HealthBar } from "@/components/HealthBar";
 import { TokenInput } from "@/components/TokenInput";
 import { SessionList } from "@/components/SessionList";
 import { SessionDetail } from "@/components/SessionDetail";
-import { fetchSessions, fetchSession, MOCK_MODE } from "@/lib/api-client";
+import { fetchSessions, fetchSession, MOCK_MODE, POLL_INTERVAL_MS } from "@/lib/api-client";
 import type { SessionSummary, SessionManifest } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -30,6 +30,7 @@ export default function DashboardPage() {
 
   // ---- Session list ----
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
 
@@ -37,6 +38,7 @@ export default function DashboardPage() {
     try {
       const res = await fetchSessions();
       setSessions(res.sessions);
+      setSessionTotal(res.total);
       setSessionsError(null);
     } catch (e) {
       setSessionsError(e instanceof Error ? e.message : String(e));
@@ -47,7 +49,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     pollSessions();
-    const id = setInterval(pollSessions, 2000);
+    const id = setInterval(pollSessions, POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [pollSessions]);
 
@@ -78,18 +80,14 @@ export default function DashboardPage() {
     loadDetail(id);
   }
 
-  // Auto-refresh selected detail every 5s
-  const selectedIdRef = useRef<string | null>(null);
-  selectedIdRef.current = selectedId;
-
   useEffect(() => {
-    const id = setInterval(() => {
-      if (selectedIdRef.current) {
-        loadDetail(selectedIdRef.current);
-      }
-    }, 5000);
+    if (
+      !selectedId ||
+      (detail?.execution_status !== "ACTIVE" && detail?.execution_status !== "COMPLETED")
+    ) return;
+    const id = setInterval(() => loadDetail(selectedId), POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [loadDetail]);
+  }, [detail?.execution_status, loadDetail, selectedId]);
 
   function handleActionComplete(updated: SessionManifest) {
     setDetail(updated);
@@ -143,13 +141,14 @@ export default function DashboardPage() {
               Agent Sessions
             </span>
             <span className="text-xs font-mono tnum text-[#94A3B8]">
-              {sessions.length} session{sessions.length !== 1 ? "s" : ""}
+              {sessionTotal} session{sessionTotal !== 1 ? "s" : ""}
             </span>
           </div>
 
           {sessionsError && (
-            <div className="px-4 py-2 text-xs text-[#EF4444] bg-[rgba(239,68,68,0.08)] border-b border-[rgba(239,68,68,0.3)]">
+            <div className="px-4 py-2 text-xs text-[#EF4444] bg-[rgba(239,68,68,0.08)] border-b border-[rgba(239,68,68,0.3)] flex items-center justify-between gap-3">
               {sessionsError}
+              <button className="underline" onClick={pollSessions}>Retry</button>
             </div>
           )}
 
@@ -158,6 +157,7 @@ export default function DashboardPage() {
             selectedId={selectedId}
             onSelect={handleSelectSession}
             loading={sessionsLoading}
+            hasError={sessionsError !== null}
           />
         </div>
 
@@ -179,8 +179,9 @@ export default function DashboardPage() {
           )}
 
           {detailError && (
-            <div className="px-4 py-3 text-xs text-[#EF4444] bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.3)] rounded">
+            <div className="px-4 py-3 text-xs text-[#EF4444] bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.3)] rounded flex items-center justify-between gap-3">
               {detailError}
+              {selectedId && <button className="underline" onClick={() => loadDetail(selectedId)}>Retry</button>}
             </div>
           )}
 

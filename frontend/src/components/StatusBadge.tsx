@@ -63,8 +63,8 @@ export function ExecutionStatusBadge({ status }: { status: ExecutionStatus }) {
 export function GateDecisionBadge({ decision }: { decision: GateDecision }) {
   // Important: ALLOW does NOT mean auto-approved. Reviewer must still commit.
   const map: Record<GateDecision, { label: string; variant: BadgeVariant }> = {
-    PENDING:          { label: "Pending Review",    variant: "cyan" },
-    ALLOW:            { label: "Allow (needs commit)", variant: "blue" },
+    PENDING:          { label: "Pending Review",    variant: "muted" },
+    ALLOW:            { label: "ALLOW · Commit required", variant: "ok" },
     REQUIRE_APPROVAL: { label: "Approval Required", variant: "warn" },
     BLOCK:            { label: "Blocked",            variant: "danger" },
   };

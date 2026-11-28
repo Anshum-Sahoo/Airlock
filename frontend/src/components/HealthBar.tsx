@@ -6,7 +6,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchHealth, MOCK_MODE } from "@/lib/api-client";
+import { fetchHealth, MOCK_MODE, POLL_INTERVAL_MS } from "@/lib/api-client";
 import type { HealthResponse } from "@/lib/types";
 
 interface HealthBarProps {
@@ -31,7 +31,7 @@ export function HealthBar({ onError }: HealthBarProps) {
     }
 
     poll();
-    const id = setInterval(poll, 2000);
+    const id = setInterval(poll, POLL_INTERVAL_MS);
     return () => { alive = false; clearInterval(id); };
   }, [onError]);
 
@@ -44,8 +44,8 @@ export function HealthBar({ onError }: HealthBarProps) {
         <span
           className={`w-2 h-2 rounded-full ${online ? "bg-[#22C55E] shadow-[0_0_6px_rgba(34,197,94,0.6)]" : "bg-[#EF4444] shadow-[0_0_6px_rgba(239,68,68,0.6)]"}`}
         />
-        <span className={online ? "text-[#22C55E]" : "text-[#EF4444]"}>
-          {online ? "Backend Online" : "Backend Offline"}
+        <span className={online ? "text-[#22C55E]" : error ? "text-[#EF4444]" : "text-[#F59E0B]"}>
+          {online ? "Backend Online" : error ? "Backend Offline" : "Checking backend…"}
         </span>
       </span>
 

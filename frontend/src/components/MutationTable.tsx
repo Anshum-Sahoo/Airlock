@@ -5,6 +5,7 @@
 
 "use client";
 
+import { useState } from "react";
 import type { Mutation, Invoice } from "@/lib/types";
 
 interface MutationTableProps {
@@ -14,9 +15,6 @@ interface MutationTableProps {
     deleted: Mutation[];
   };
 }
-
-const CURRENCY_FIELDS = new Set(["amount_cents"]);
-const DATE_FIELDS = new Set(["due_date", "created_at", "updated_at"]);
 
 function formatValue(key: string, val: unknown): string {
   if (val === null || val === undefined) return "—";
@@ -67,6 +65,7 @@ function MutationCard({ mutation }: { mutation: Mutation }) {
     PENDING:          "text-[#94A3B8]",
     ALLOW:            "text-[#3B82F6]",
     REQUIRE_APPROVAL: "text-[#F59E0B]",
+    BLOCK:             "text-[#EF4444]",
   };
 
   return (
@@ -127,6 +126,7 @@ function MutationCard({ mutation }: { mutation: Mutation }) {
 }
 
 export function MutationTable({ mutations }: MutationTableProps) {
+  const [showAll, setShowAll] = useState(false);
   const all = [
     ...mutations.updated,
     ...mutations.deleted,
@@ -142,7 +142,7 @@ export function MutationTable({ mutations }: MutationTableProps) {
   }
 
   // Show first 50 — bulk sessions can have 420+ mutations; pagination out of MVP scope
-  const shown = all.slice(0, 50);
+  const shown = showAll ? all : all.slice(0, 50);
   const truncated = all.length > 50;
 
   return (
@@ -152,7 +152,14 @@ export function MutationTable({ mutations }: MutationTableProps) {
       ))}
       {truncated && (
         <div className="text-center text-xs text-[#94A3B8] py-2">
-          Showing 50 of {all.length} mutations. Full list available via API.
+          Showing {shown.length} of {all.length} mutations. {" "}
+          <button
+            type="button"
+            className="text-[#06B6D4] underline"
+            onClick={() => setShowAll((value) => !value)}
+          >
+            {showAll ? "Show first 50" : `Show all ${all.length}`}
+          </button>
         </div>
       )}
     </div>

@@ -5,10 +5,21 @@ export type ExecutionStatus = "ACTIVE" | "COMPLETED" | "COMMITTED" | "ROLLED_BAC
 export type GateDecision = "PENDING" | "ALLOW" | "REQUIRE_APPROVAL" | "BLOCK";
 export type HumanReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type MutationType = "INSERT" | "UPDATE" | "DELETE";
-export type PolicyDecision = "PENDING" | "ALLOW" | "REQUIRE_APPROVAL";
+export type PolicyDecision = "PENDING" | "ALLOW" | "REQUIRE_APPROVAL" | "BLOCK";
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type EffectScope = "SESSION" | "TOOL";
 export type PolicyDecisionEnum = "ALLOW" | "REQUIRE_APPROVAL" | "BLOCK";
+export type PolicyStage = "TOOL_EXECUTE" | "SESSION_COMPLETE";
+export type ToolExecutionStatus = "SUCCESS" | "BLOCKED" | "ERROR";
+export type ToolDecision = "ALLOW" | "REQUIRE_APPROVAL" | "BLOCK";
+export type ChangedInvoiceField =
+  | "customer_name"
+  | "customer_email"
+  | "amount_cents"
+  | "currency"
+  | "status"
+  | "due_date"
+  | "notes";
 
 /** contracts/invoice.schema.json */
 export interface Invoice {
@@ -30,12 +41,12 @@ export interface Mutation {
   mutation_id: string;
   operation_id: string;
   tool_name: string;
-  entity_type: string;
+  entity_type: "invoice";
   entity_id: string;
   mutation_type: MutationType;
   before: Invoice | null;
   after: Invoice | null;
-  changed_fields: string[];
+  changed_fields: ChangedInvoiceField[];
   baseline_version: number | null;
   timestamp: string;
   policy_decision: PolicyDecision;
@@ -43,15 +54,47 @@ export interface Mutation {
 
 /** contracts/manifest.schema.json#/$defs/PolicyViolation */
 export interface PolicyViolation {
-  violation_id: string;
   policy_id: string;
   policy_name: string;
+  severity: RiskLevel;
   decision: PolicyDecisionEnum;
   effect_scope: EffectScope;
-  severity: RiskLevel;
-  explanation: string;
+  stage: PolicyStage;
   operation_id: string | null;
-  entity_id: string | null;
+  explanation: string;
+  affected_record_count: number | null;
+  timestamp: string;
+}
+
+/** contracts/manifest.schema.json#/$defs/StagedWebhook */
+export interface StagedWebhook {
+  webhook_id: string;
+  operation_id: string;
+  url: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  staged_at: string;
+  status: "STAGED" | "BLOCKED";
+}
+
+/** contracts/manifest.schema.json#/$defs/ToolExecution */
+export interface ToolExecution {
+  operation_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  read_only: boolean | null;
+  status: ToolExecutionStatus;
+  tool_decision: ToolDecision;
+  mutations_recorded: number;
+  error_code:
+    | "INVALID_TOOL"
+    | "INVALID_ARGUMENTS"
+    | "INVOICE_NOT_FOUND"
+    | "POLICY_BLOCK"
+    | "DATABASE_FAILURE"
+    | "INTERNAL_ERROR"
+    | null;
+  executed_at: string;
 }
 
 /** contracts/manifest.schema.json#/$defs/RiskSummary */
@@ -154,9 +197,9 @@ export interface SessionManifest {
     updated: Mutation[];
     deleted: Mutation[];
   };
-  staged_webhooks: unknown[];
+  staged_webhooks: StagedWebhook[];
   policy_violations: PolicyViolation[];
-  tool_execution_history: unknown[];
+  tool_execution_history: ToolExecution[];
   finalization_result: FinalizationResult | null;
 }
 
@@ -178,5 +221,6 @@ export interface ApiError {
     http_status: number;
     details: Record<string, unknown>;
     request_id: string;
+    timestamp: string;
   };
 }

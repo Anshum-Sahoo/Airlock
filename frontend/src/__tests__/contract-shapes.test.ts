@@ -139,12 +139,30 @@ describe("SessionManifest contract shape", () => {
     if (!bulk) return;
     expect(bulk.policy_violations.length).toBeGreaterThan(0);
     for (const v of bulk.policy_violations) {
-      expect(typeof v.violation_id).toBe("string");
       expect(typeof v.policy_id).toBe("string");
       expect(["ALLOW", "REQUIRE_APPROVAL", "BLOCK"]).toContain(v.decision);
       expect(["SESSION", "TOOL"]).toContain(v.effect_scope);
       expect(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).toContain(v.severity);
+      expect(["TOOL_EXECUTE", "SESSION_COMPLETE"]).toContain(v.stage);
+      expect(["string", "object"]).toContain(typeof v.operation_id);
+      expect(Object.keys(v).sort()).toEqual([
+        "affected_record_count", "decision", "effect_scope", "explanation",
+        "operation_id", "policy_id", "policy_name", "severity", "stage", "timestamp",
+      ].sort());
     }
+  });
+
+  it("mock manifest detail collections use the frozen contract shapes", () => {
+    const bulk = getMockSessionDetail("a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d");
+    expect(bulk).not.toBeNull();
+    if (!bulk) return;
+
+    expect(bulk.mutations.deleted).toHaveLength(bulk.mutation_counts.deleted);
+    expect(bulk.tool_execution_history[0]).toMatchObject({ status: "SUCCESS", tool_decision: "ALLOW" });
+    expect(Object.keys(bulk.tool_execution_history[0]).sort()).toEqual([
+      "arguments", "error_code", "executed_at", "mutations_recorded", "operation_id",
+      "read_only", "status", "tool_decision", "tool_name",
+    ].sort());
   });
 });
 
